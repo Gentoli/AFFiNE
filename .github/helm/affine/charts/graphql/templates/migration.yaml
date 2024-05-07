@@ -27,7 +27,7 @@ spec:
           - name: DATABASE_PASSWORD
             valueFrom:
               secretKeyRef:
-                name:  {{ default "{{ include "graphql.fullname" . }}-pg" .Values.global.database.secret.name }}
+                name:  {{ default (print (include "graphql.fullname" .) "-pg" ) .Values.global.database.secret.name }}
                 key: {{ .Values.global.database.secret.key }}
           {{ if .Values.global.database.gcloud.enabled }}
           - name: DATABASE_URL
