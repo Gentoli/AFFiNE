@@ -34,7 +34,7 @@ spec:
           - name: DATABASE_PASSWORD
             valueFrom:
               secretKeyRef:
-                name:  {{ default (print (include "graphql.fullname" .) "-pg" ) .Values.global.database.secret.name }}
+                name: {{ default (print (include "graphql.fullname" .) "-pg" ) .Values.global.database.secret.name }}
                 key: {{ .Values.global.database.secret.key }}
           {{ if .Values.global.database.gcloud.enabled }}
           - name: DATABASE_URL
@@ -60,18 +60,33 @@ spec:
                 name: "{{ .Values.app.objectStorage.r2.secretName }}"
                 key: secretAccessKey
           {{ end }}
+          {{- if .Values.app.admin.enabled }}
+          - name: AFFINE_ADMIN_EMAIL
+            value: {{ .Values.app.admin.email }}
+          - name: AFFINE_ADMIN_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Values.app.admin.secretName }}
+                key: password
+          {{- end }}
         resources:
           requests:
             cpu: '100m'
             memory: '200Mi'
         volumeMounts:
           - name: config
-            mountPath: /.affine
+            mountPath: {{ .Values.app.config.path }}
+            subPath: /.affine
           - name: config
             mountPath: /app/dist/schema.gql
             subPath: schema.gql
       restartPolicy: Never
       volumes:
         - name: config
+          {{- if .Values.app.config.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "graphql.fullname" . }}-config
+          {{- else }}
           emptyDir: {}
+          {{- end }}
   backoffLimit: 1

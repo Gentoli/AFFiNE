@@ -10,6 +10,12 @@ fullnameOverride: ''
 # map to NODE_ENV environment variable
 env: 'production'
 app:
+  admin:
+    enabled: false
+    email: 'admin@example.com'
+    secret:
+      secretName: ''
+      password: ''
   experimental:
     enableJwstCodec: true
   # AFFINE_SERVER_SUB_PATH
@@ -17,6 +23,12 @@ app:
   # AFFINE_SERVER_HOST
   host: '0.0.0.0'
   https: true
+  config:
+    path: '/.affine'
+    persistence:
+      enabled: false
+      accessMode: RWX
+      size: 1G
   doc:
     mergeInterval: "3000"
   captcha:

@@ -1,0 +1,22 @@
+{{- if and .Values.app.config.persistence.enabled (not .Values.app.config.persistence.existingClaim) }}
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: {{ include "graphql.fullname" . }}-config
+  {{- with .Values.app.config.persistence.annotations  }}
+  annotations:
+    {{ toYaml . | indent 4 }}
+    {{- end }}
+  labels:
+    {{- include "graphql.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - {{ .Values.app.config.persistence.accessMode | quote }}
+  resources:
+    requests:
+      storage: {{ .Values.app.config.persistence.size | quote }}
+  {{- if .Values.app.config.persistence.storageClass }}
+  storageClassName: "{{ .Values.app.config.persistence.storageClass }}"
+  {{- end }}
+{{- end }}
+{{- end }}

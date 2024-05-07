@@ -212,6 +212,21 @@ spec:
             initialDelaySeconds: {{ .Values.probe.initialDelaySeconds }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: {{ .Values.app.config.path }}
+              subPath: /.affine
+            - name: config
+              mountPath: /app/dist/schema.gql
+              subPath: schema.gql
+      volumes:
+        - name: config
+          {{- if .Values.app.config.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "graphql.fullname" . }}-config
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
