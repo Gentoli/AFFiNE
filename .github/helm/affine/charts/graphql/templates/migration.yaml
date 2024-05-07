@@ -57,7 +57,7 @@ spec:
           requests:
             cpu: '100m'
             memory: '200Mi'
-        volumeMount:
+        volumeMounts:
           - name: config
             mountPath: /.affine
       restartPolicy: Never
