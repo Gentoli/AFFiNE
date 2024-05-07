@@ -48,8 +48,8 @@ spec:
           - name: DATABASE_PASSWORD
             valueFrom:
               secretKeyRef:
-                name: pg-postgresql
-                key: postgres-password
+                name:  {{ default "{{ include "graphql.fullname" . }}-pg" .Values.global.database.secret.name }}
+                key: {{ .Values.global.database.secret.key }}
           - name: DATABASE_URL
             value: postgres://{{ .Values.global.database.user }}:$(DATABASE_PASSWORD)@{{ .Values.global.database.url }}:{{ .Values.global.database.port }}/{{ .Values.global.database.name }}
           - name: REDIS_SERVER_ENABLED
@@ -63,8 +63,8 @@ spec:
           - name: REDIS_SERVER_PASSWORD
             valueFrom:
               secretKeyRef:
-                name: redis
-                key: redis-password
+                name: {{ default "{{ include "graphql.fullname" . }}-redis" .Values.global.redis.secret.name }}
+                key: {{ .Values.global.redis.secret.key }}
           - name: REDIS_SERVER_DATABASE
             value: "{{ .Values.global.redis.database }}"
           - name: AFFINE_SERVER_PORT
@@ -83,16 +83,11 @@ spec:
             value: "{{ .Values.app.features.earlyAccessPreview }}"
           - name: FEATURES_SYNC_CLIENT_VERSION_CHECK
             value: "{{ .Values.app.features.syncClientVersionCheck }}"
+          {{- if .Values.app.mailer.enabled }}
           - name: MAILER_HOST
-            valueFrom:
-              secretKeyRef:
-                name: "{{ .Values.app.mailer.secretName }}"
-                key: host
+            value: "{{ .Values.app.mailer.host }}"
           - name: MAILER_PORT
-            valueFrom:
-              secretKeyRef:
-                name: "{{ .Values.app.mailer.secretName }}"
-                key: port
+            value: "{{ .Values.app.mailer.port }}"
           - name: MAILER_USER
             valueFrom:
               secretKeyRef:
@@ -108,6 +103,8 @@ spec:
               secretKeyRef:
                 name: "{{ .Values.app.mailer.secretName }}"
                 key: sender
+          {{- end }}
+          {{- if and .Values.app.payment.enabled -}}
           - name: STRIPE_API_KEY
             valueFrom:
               secretKeyRef:
@@ -118,6 +115,7 @@ spec:
               secretKeyRef:
                 name: "{{ .Values.app.payment.stripe.secretName }}"
                 key: stripeWebhookKey
+          {{- end }}
           - name: DOC_MERGE_INTERVAL
             value: "{{ .Values.app.doc.mergeInterval }}"
           {{ if .Values.app.experimental.enableJwstCodec }}

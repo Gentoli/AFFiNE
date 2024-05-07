@@ -32,6 +32,7 @@ app:
   objectStorage:
     r2:
       enabled: false
+      create: true
       secretName: r2
       accountId: ''
       accessKeyId: ''
@@ -48,6 +49,7 @@ app:
       clientId: ''
       clientSecret: ''
   mailer:
+    enabled: true
     secretName: 'mailer'
     host: 'smtp.gmail.com'
     port: '465'
@@ -60,6 +62,7 @@ app:
     customerIo:
       token: ''
   payment:
+    enabled: true
     stripe:
       secretName: 'stripe'
       apiKey: ''

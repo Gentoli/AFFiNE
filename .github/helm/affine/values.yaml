@@ -5,6 +5,7 @@ global:
     host: affine.pro
     tls: []
   secret:
+    create: true
     secretName: 'server-private-key'
     privateKey: ''
   database:
@@ -12,7 +13,11 @@ global:
     url: 'pg-postgresql'
     port: '5432'
     name: 'affine'
-    password: ''
+    secret:
+      # name if using existing secret
+      name: ''
+      key: "postgres-password"
+      password: ''
     gcloud:
       enabled: false
       # use for migration
@@ -25,9 +30,12 @@ global:
     enabled: true
     host: 'redis-master'
     port: '6379'
-    username: ''
-    password: ''
     database: 0
+    secret:
+      # name if using existing secret
+      name: ''
+      key: "redis-password"
+      password: ''
   gke:
     enabled: true
 
