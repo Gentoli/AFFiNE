@@ -10,6 +10,12 @@ fullnameOverride: ''
 # map to NODE_ENV environment variable
 env: 'production'
 app:
+  admin:
+    enabled: false
+    secret:
+      name: ''
+      email: ''
+      password: ''
   experimental:
     enableJwstCodec: true
   # AFFINE_SERVER_SUB_PATH
@@ -17,14 +23,24 @@ app:
   # AFFINE_SERVER_HOST
   host: '0.0.0.0'
   https: true
+  config:
+    path: '/.affine'
+    persistence:
+      enabled: false
+      accessMode: ReadWriteMany
+      size: 1Gi
   captcha:
     enabled: false
-    secretName: captcha
+    secret:
+      name: ''
     turnstile:
       secret: ''
   copilot:
     enabled: false
     secretName: copilot
+    secretCreate: true
+    fal: ''
+    unsplash: ''
     openai:
       key: ''
   oauth:
@@ -39,6 +55,7 @@ app:
       clientId: ''
       clientSecret: ''
   mailer:
+    enabled: true
     secretName: 'mailer'
     host: 'smtp.gmail.com'
     port: '465'
@@ -51,6 +68,7 @@ app:
     customerIo:
       token: ''
   payment:
+    enabled: true
     stripe:
       secretName: 'stripe'
       apiKey: ''

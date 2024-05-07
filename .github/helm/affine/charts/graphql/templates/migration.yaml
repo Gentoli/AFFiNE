@@ -13,29 +13,36 @@ spec:
   template:
     spec:
       serviceAccountName: {{ include "graphql.serviceAccountName" . }}
+      initContainers:
+        - name: empty-file
+          image: alpine
+          command: ["sh", "-c", "touch /mnt/schema.gql"]
+          volumeMounts:
+          - name: config
+            mountPath: /mnt
       containers:
       - name: {{ .Chart.Name }}
         image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+        imagePullPolicy: Always
         command: ["yarn", "predeploy"]
         env:
           - name: NODE_ENV
             value: "{{ .Values.env }}"
           - name: AFFINE_ENV
-            value: "{{ .Release.Namespace }}"
+            value: "{{ .Values.env }}"
           - name: DEPLOYMENT_TYPE
             value: "affine"
           - name: DATABASE_PASSWORD
             valueFrom:
               secretKeyRef:
-                name: pg-postgresql
-                key: postgres-password
-          {{ if not .Values.global.database.gcloud.enabled }}
-          - name: DATABASE_URL
-            value: postgres://{{ .Values.global.database.user }}:$(DATABASE_PASSWORD)@{{ .Values.global.database.url }}:{{ .Values.global.database.port }}/{{ .Values.global.database.name }}
-          {{ end }}
+                name: {{ default (print (include "graphql.fullname" .) "-pg" ) .Values.global.database.secret.name }}
+                key: {{ .Values.global.database.secret.key }}
           {{ if .Values.global.database.gcloud.enabled }}
           - name: DATABASE_URL
             value: postgres://{{ .Values.global.database.user }}:$(DATABASE_PASSWORD)@{{ .Values.global.database.gcloud.cloudSqlInternal }}:{{ .Values.global.database.port }}/{{ .Values.global.database.name }}
+          {{ else }}
+          - name: DATABASE_URL
+            value: postgres://{{ .Values.global.database.user }}:$(DATABASE_PASSWORD)@{{ .Values.global.database.url }}:{{ .Values.global.database.port }}/{{ .Values.global.database.name }}
           {{ end }}
           {{ if .Values.global.objectStorage.r2.enabled }}
           - name: R2_OBJECT_STORAGE_ACCOUNT_ID
@@ -54,9 +61,36 @@ spec:
                 name: "{{ .Values.global.objectStorage.r2.secretName }}"
                 key: secretAccessKey
           {{ end }}
+          {{- if .Values.app.admin.enabled }}
+          - name: AFFINE_ADMIN_EMAIL
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Values.app.admin.secret.name }}
+                key: email
+          - name: AFFINE_ADMIN_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Values.app.admin.secret.name }}
+                key: password
+          {{- end }}
         resources:
           requests:
             cpu: '100m'
             memory: '200Mi'
+        volumeMounts:
+          - name: config
+            mountPath: {{ .Values.app.config.path }}
+            subPath: .affine
+          - name: config
+            mountPath: /app/dist/schema.gql
+            subPath: schema.gql
       restartPolicy: Never
+      volumes:
+        - name: config
+          {{- if .Values.app.config.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "graphql.fullname" . }}-config
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
   backoffLimit: 1

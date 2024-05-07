@@ -44,12 +44,12 @@ spec:
           - name: SERVER_FLAVOR
             value: "graphql"
           - name: AFFINE_ENV
-            value: "{{ .Release.Namespace }}"
+            value: "{{ .Values.env }}"
           - name: DATABASE_PASSWORD
             valueFrom:
               secretKeyRef:
-                name: pg-postgresql
-                key: postgres-password
+                name: {{ default (print (include "graphql.fullname" .) "-pg" ) .Values.global.database.secret.name }}
+                key: {{ .Values.global.database.secret.key }}
           - name: DATABASE_URL
             value: postgres://{{ .Values.global.database.user }}:$(DATABASE_PASSWORD)@{{ .Values.global.database.url }}:{{ .Values.global.database.port }}/{{ .Values.global.database.name }}
           - name: REDIS_SERVER_ENABLED
@@ -60,11 +60,13 @@ spec:
             value: "{{ .Values.global.redis.port }}"
           - name: REDIS_SERVER_USER
             value: "{{ .Values.global.redis.username }}"
+          {{- if or .Values.global.redis.secret.name .Values.global.redis.secret.password }}
           - name: REDIS_SERVER_PASSWORD
             valueFrom:
               secretKeyRef:
-                name: redis
-                key: redis-password
+                name: {{ default (print (include "graphql.fullname" .) "-redis" ) .Values.global.redis.secret.name }}
+                key: {{ .Values.global.redis.secret.key }}
+          {{- end }}
           - name: REDIS_SERVER_DATABASE
             value: "{{ .Values.global.redis.database }}"
           - name: AFFINE_SERVER_PORT
@@ -81,16 +83,11 @@ spec:
             value: "{{ .Values.app.features.earlyAccessPreview }}"
           - name: FEATURES_SYNC_CLIENT_VERSION_CHECK
             value: "{{ .Values.app.features.syncClientVersionCheck }}"
+          {{- if .Values.app.mailer.enabled }}
           - name: MAILER_HOST
-            valueFrom:
-              secretKeyRef:
-                name: "{{ .Values.app.mailer.secretName }}"
-                key: host
+            value: "{{ .Values.app.mailer.host }}"
           - name: MAILER_PORT
-            valueFrom:
-              secretKeyRef:
-                name: "{{ .Values.app.mailer.secretName }}"
-                key: port
+            value: "{{ .Values.app.mailer.port }}"
           - name: MAILER_USER
             valueFrom:
               secretKeyRef:
@@ -106,6 +103,8 @@ spec:
               secretKeyRef:
                 name: "{{ .Values.app.mailer.secretName }}"
                 key: sender
+          {{- end }}
+          {{- if .Values.app.payment.enabled }}
           - name: STRIPE_API_KEY
             valueFrom:
               secretKeyRef:
@@ -116,6 +115,7 @@ spec:
               secretKeyRef:
                 name: "{{ .Values.app.payment.stripe.secretName }}"
                 key: stripeWebhookKey
+          {{- end }}
           - name: DOC_SERVICE_ENDPOINT
             value: "http://{{ .Values.global.docService.name }}:{{ .Values.global.docService.port }}"
           {{ if .Values.app.experimental.enableJwstCodec }}
@@ -138,15 +138,17 @@ spec:
               secretKeyRef:
                 name: "{{ .Values.global.objectStorage.r2.secretName }}"
                 key: secretAccessKey
-          {{ end }}
-          {{ if .Values.app.captcha.enabled }}
+          {{- end }}
+          - name: ENABLE_CAPTCHA
+            value: "{{ .Values.app.captcha.enabled }}"
+          {{- if .Values.app.captcha.enabled }}
           - name: CAPTCHA_TURNSTILE_SECRET
             valueFrom:
               secretKeyRef:
-                name: "{{ .Values.app.captcha.secretName }}"
+                name: "{{ .Values.app.captcha.secret.name }}"
                 key: turnstileSecret
-          {{ end }}
-          {{ if .Values.app.copilot.enabled }}
+          {{- end }}
+          {{- if .Values.app.copilot.enabled }}
           - name: COPILOT_OPENAI_API_KEY
             valueFrom:
               secretKeyRef:
@@ -167,8 +169,8 @@ spec:
               secretKeyRef:
                 name: "{{ .Values.app.copilot.secretName }}"
                 key: unsplashSecret
-          {{ end }}
-          {{ if .Values.app.oauth.google.enabled }}
+          {{- end }}
+          {{- if .Values.app.oauth.google.enabled }}
           - name: OAUTH_GOOGLE_ENABLED
             value: "true"
           - name: OAUTH_GOOGLE_CLIENT_ID
@@ -181,8 +183,8 @@ spec:
               secretKeyRef:
                 name: "{{ .Values.app.oauth.google.secretName }}"
                 key: clientSecret
-          {{ end }}
-          {{ if .Values.app.oauth.github.enabled }}
+          {{- end }}
+          {{- if .Values.app.oauth.github.enabled }}
           - name: OAUTH_GITHUB_CLIENT_ID
             valueFrom:
               secretKeyRef:
@@ -193,14 +195,14 @@ spec:
               secretKeyRef:
                 name: "{{ .Values.app.oauth.github.secretName }}"
                 key: clientSecret
-          {{ end }}
-          {{ if .Values.app.metrics.enabled }}
+          {{- end }}
+          {{- if .Values.app.metrics.enabled }}
           - name: METRICS_CUSTOMER_IO_TOKEN
             valueFrom:
               secretKeyRef:
                 name: "{{ .Values.app.metrics.secretName }}"
                 key: customerIoSecret
-          {{ end }}
+          {{- end }}
           ports:
             - name: http
               containerPort: {{ .Values.service.port }}
@@ -217,6 +219,21 @@ spec:
             initialDelaySeconds: {{ .Values.probe.initialDelaySeconds }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: {{ .Values.app.config.path }}
+              subPath: .affine
+            - name: config
+              mountPath: /app/dist/schema.gql
+              subPath: schema.gql
+      volumes:
+        - name: config
+          {{- if .Values.app.config.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "graphql.fullname" . }}-config
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
