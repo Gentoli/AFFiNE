@@ -145,7 +145,7 @@ spec:
           - name: CAPTCHA_TURNSTILE_SECRET
             valueFrom:
               secretKeyRef:
-                name: "{{ .Values.app.captcha.secretName }}"
+                name: "{{ .Values.app.captcha.secret.name }}"
                 key: turnstileSecret
           {{- end }}
           {{- if .Values.app.copilot.enabled }}
