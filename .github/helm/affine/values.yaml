@@ -31,6 +31,7 @@ global:
     host: 'redis-master'
     port: '6379'
     database: 0
+    username: ''
     secret:
       # name if using existing secret
       name: ''

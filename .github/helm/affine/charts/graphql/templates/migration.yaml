@@ -21,7 +21,7 @@ spec:
           - name: NODE_ENV
             value: "{{ .Values.env }}"
           - name: AFFINE_ENV
-            value: "{{ .Release.Namespace }}"
+            value: "{{ .Values.env }}"
           - name: DEPLOYMENT_TYPE
             value: "affine"
           - name: DATABASE_PASSWORD
