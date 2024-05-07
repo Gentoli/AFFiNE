@@ -104,7 +104,7 @@ spec:
                 name: "{{ .Values.app.mailer.secretName }}"
                 key: sender
           {{- end }}
-          {{- if and .Values.app.payment.enabled -}}
+          {{- if .Values.app.payment.enabled -}}
           - name: STRIPE_API_KEY
             valueFrom:
               secretKeyRef:
