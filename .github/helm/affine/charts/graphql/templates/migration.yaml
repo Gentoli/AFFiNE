@@ -57,5 +57,11 @@ spec:
           requests:
             cpu: '100m'
             memory: '200Mi'
+        volumeMount:
+          - name: config
+            mountPath: /.affine
       restartPolicy: Never
+      volumes:
+        - name: config
+          emptyDir: {}
   backoffLimit: 1
