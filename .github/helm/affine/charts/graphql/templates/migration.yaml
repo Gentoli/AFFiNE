@@ -62,11 +62,14 @@ spec:
           {{ end }}
           {{- if .Values.app.admin.enabled }}
           - name: AFFINE_ADMIN_EMAIL
-            value: {{ .Values.app.admin.email }}
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Values.app.admin.secret.name }}
+                key: email
           - name: AFFINE_ADMIN_PASSWORD
             valueFrom:
               secretKeyRef:
-                name: {{ .Values.app.admin.secretName }}
+                name: {{ .Values.app.admin.secret.name }}
                 key: password
           {{- end }}
         resources:

@@ -12,9 +12,9 @@ env: 'production'
 app:
   admin:
     enabled: false
-    email: 'admin@example.com'
     secret:
-      secretName: ''
+      name: ''
+      email: ''
       password: ''
   experimental:
     enableJwstCodec: true
