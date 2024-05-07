@@ -60,11 +60,13 @@ spec:
             value: "{{ .Values.global.redis.port }}"
           - name: REDIS_SERVER_USER
             value: "{{ .Values.global.redis.username }}"
+          {{- if or .Values.global.redis.secret.name .Values.global.redis.secret.password }}
           - name: REDIS_SERVER_PASSWORD
             valueFrom:
               secretKeyRef:
                 name: {{ default (print (include "graphql.fullname" .) "-redis" ) .Values.global.redis.secret.name }}
                 key: {{ .Values.global.redis.secret.key }}
+          {{- end }}
           - name: REDIS_SERVER_DATABASE
             value: "{{ .Values.global.redis.database }}"
           - name: AFFINE_SERVER_PORT
