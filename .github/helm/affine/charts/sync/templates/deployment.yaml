@@ -46,12 +46,12 @@ spec:
           - name: SERVER_FLAVOR
             value: "sync"
           - name: AFFINE_ENV
-            value: "{{ .Release.Namespace }}"
+            value: "{{ .Values.env }}"
           - name: DATABASE_PASSWORD
             valueFrom:
               secretKeyRef:
-                name: pg-postgresql
-                key: postgres-password
+                name: {{ default (print (include "graphql.fullname" .) "-pg" ) .Values.global.database.secret.name }}
+                key: {{ .Values.global.database.secret.key }}
           - name: DATABASE_URL
             value: postgres://{{ .Values.global.database.user }}:$(DATABASE_PASSWORD)@{{ .Values.global.database.url }}:{{ .Values.global.database.port }}/{{ .Values.global.database.name }}
           - name: REDIS_SERVER_ENABLED
@@ -65,8 +65,8 @@ spec:
           - name: REDIS_SERVER_PASSWORD
             valueFrom:
               secretKeyRef:
-                name: redis
-                key: redis-password
+                name: {{ default (print (include "graphql.fullname" .) "-redis" ) .Values.global.redis.secret.name }}
+                key: {{ .Values.global.redis.secret.key }}
           - name: REDIS_SERVER_DATABASE
             value: "{{ .Values.global.redis.database }}"
           - name: AFFINE_SERVER_PORT
