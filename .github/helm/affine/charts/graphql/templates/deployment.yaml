@@ -104,7 +104,7 @@ spec:
                 name: "{{ .Values.app.mailer.secretName }}"
                 key: sender
           {{- end }}
-          {{- if .Values.app.payment.enabled -}}
+          {{- if .Values.app.payment.enabled }}
           - name: STRIPE_API_KEY
             valueFrom:
               secretKeyRef:
@@ -118,11 +118,11 @@ spec:
           {{- end }}
           - name: DOC_MERGE_INTERVAL
             value: "{{ .Values.app.doc.mergeInterval }}"
-          {{ if .Values.app.experimental.enableJwstCodec }}
+          {{- if .Values.app.experimental.enableJwstCodec }}
           - name: DOC_MERGE_USE_JWST_CODEC
             value: "true"
-          {{ end }}
-          {{ if .Values.app.objectStorage.r2.enabled }}
+          {{- end }}
+          {{- if .Values.app.objectStorage.r2.enabled }}
           - name: R2_OBJECT_STORAGE_ACCOUNT_ID
             valueFrom:
               secretKeyRef:
@@ -138,15 +138,15 @@ spec:
               secretKeyRef:
                 name: "{{ .Values.app.objectStorage.r2.secretName }}"
                 key: secretAccessKey
-          {{ end }}
-          {{ if .Values.app.captcha.enabled }}
+          {{- end }}
+          {{- if .Values.app.captcha.enabled }}
           - name: CAPTCHA_TURNSTILE_SECRET
             valueFrom:
               secretKeyRef:
                 name: "{{ .Values.app.captcha.secretName }}"
                 key: turnstileSecret
-          {{ end }}
-          {{ if .Values.app.copilot.enabled }}
+          {{- end }}
+          {{- if .Values.app.copilot.enabled }}
           - name: COPILOT_OPENAI_API_KEY
             valueFrom:
               secretKeyRef:
@@ -162,8 +162,8 @@ spec:
               secretKeyRef:
                 name: "{{ .Values.app.copilot.secretName }}"
                 key: unsplashSecret
-          {{ end }}
-          {{ if .Values.app.oauth.google.enabled }}
+          {{- end }}
+          {{- if .Values.app.oauth.google.enabled }}
           - name: OAUTH_GOOGLE_ENABLED
             value: "true"
           - name: OAUTH_GOOGLE_CLIENT_ID
@@ -176,8 +176,8 @@ spec:
               secretKeyRef:
                 name: "{{ .Values.app.oauth.google.secretName }}"
                 key: clientSecret
-          {{ end }}
-          {{ if .Values.app.oauth.github.enabled }}
+          {{- end }}
+          {{- if .Values.app.oauth.github.enabled }}
           - name: OAUTH_GITHUB_CLIENT_ID
             valueFrom:
               secretKeyRef:
@@ -188,14 +188,14 @@ spec:
               secretKeyRef:
                 name: "{{ .Values.app.oauth.github.secretName }}"
                 key: clientSecret
-          {{ end }}
-          {{ if .Values.app.metrics.enabled }}
+          {{- end }}
+          {{- if .Values.app.metrics.enabled }}
           - name: METRICS_CUSTOMER_IO_TOKEN
             valueFrom:
               secretKeyRef:
                 name: "{{ .Values.app.metrics.secretName }}"
                 key: customerIoSecret
-          {{ end }}
+          {{- end }}
           ports:
             - name: http
               containerPort: {{ .Values.service.port }}
