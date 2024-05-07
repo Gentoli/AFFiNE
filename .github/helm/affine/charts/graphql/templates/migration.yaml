@@ -13,12 +13,13 @@ spec:
   template:
     spec:
       serviceAccountName: {{ include "graphql.serviceAccountName" . }}
-      - name: empty-file
-        image: alpine
-        command: ["sh", "-c", "touch /mnt/schema.gql"]
-        volumeMounts:
-        - name: config
-          mountPath: /mnt
+      initContainers:
+        - name: empty-file
+          image: alpine
+          command: ["sh", "-c", "touch /mnt/schema.gql"]
+          volumeMounts:
+          - name: config
+            mountPath: /mnt
       containers:
       - name: {{ .Chart.Name }}
         image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
