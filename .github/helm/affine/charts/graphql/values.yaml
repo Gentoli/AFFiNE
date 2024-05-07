@@ -27,7 +27,7 @@ app:
     path: '/.affine'
     persistence:
       enabled: false
-      accessMode: RWX
+      accessMode: ReadWriteMany
       size: 1Gi
   doc:
     mergeInterval: "3000"
