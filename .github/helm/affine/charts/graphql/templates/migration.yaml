@@ -67,7 +67,7 @@ spec:
         volumeMounts:
           - name: config
             mountPath: /.affine
-          - name: empty-dir
+          - name: config
             mountPath: /app/dist/schema.gql
             subPath: schema.gql
       restartPolicy: Never
