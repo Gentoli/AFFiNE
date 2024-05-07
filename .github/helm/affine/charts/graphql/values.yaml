@@ -28,7 +28,7 @@ app:
     persistence:
       enabled: false
       accessMode: RWX
-      size: 1G
+      size: 1Gi
   doc:
     mergeInterval: "3000"
   captcha:
