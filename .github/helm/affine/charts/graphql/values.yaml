@@ -40,6 +40,9 @@ app:
   copilot:
     enabled: false
     secretName: copilot
+    secretCreate: true
+    fal: ''
+    unsplash: ''
     openai:
       key: ''
   objectStorage:
