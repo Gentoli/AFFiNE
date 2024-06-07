@@ -23,6 +23,7 @@ spec:
       containers:
       - name: {{ .Chart.Name }}
         image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+        imagePullPolicy: Always
         command: ["yarn", "predeploy"]
         env:
           - name: NODE_ENV
