@@ -43,6 +43,30 @@ spec:
             initialDelaySeconds: {{ .Values.probe.initialDelaySeconds }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            {{- if .Values.useEmptyDirTemp }}
+            - mountPath: /usr/local/openresty/nginx/client_body_temp
+              name: temp
+              subPath: client_body_temp
+            - mountPath: /usr/local/openresty/nginx/proxy_temp
+              name: temp
+              subPath: proxy_temp
+            - mountPath: /usr/local/openresty/nginx/fastcgi_temp
+              name: temp
+              subPath: fastcgi_temp
+            - mountPath: /usr/local/openresty/nginx/uwsgi_temp
+              name: temp
+              subPath: uwsgi_temp
+            - mountPath: /usr/local/openresty/nginx/scgi_temp
+              name: temp
+              subPath: scgi_temp
+            - mountPath: /var/log/nginx
+              name: temp
+              subPath: log
+            - mountPath: /usr/local/openresty/nginx/logs
+              name: temp
+              subPath: openresty-log
+            {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
@@ -54,4 +78,9 @@ spec:
       {{- with .Values.tolerations }}
       tolerations:
         {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.useEmptyDirTemp }}
+      volumes:
+        - emptyDir: {}
+          name: temp
       {{- end }}

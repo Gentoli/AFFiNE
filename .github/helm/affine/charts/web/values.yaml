@@ -35,3 +35,5 @@ affinity: {}
 
 probe:
   initialDelaySeconds: 1
+
+useEmptyDirTemp: false
