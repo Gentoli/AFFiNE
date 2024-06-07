@@ -36,3 +36,4 @@ probe:
 nodeSelector: {}
 tolerations: []
 affinity: {}
+useEmptyDirConfig: false
