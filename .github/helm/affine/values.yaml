@@ -42,6 +42,7 @@ global:
   objectStorage:
     r2:
       enabled: false
+      create: true
       secretName: r2
       accountId: ''
       accessKeyId: ''
