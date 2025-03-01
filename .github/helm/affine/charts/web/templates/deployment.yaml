@@ -29,7 +29,7 @@ spec:
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           env:
           - name: AFFINE_ENV
-            value: "{{ .Release.Namespace }}"
+            value: "{{ .Values.env }}"
           ports:
             - name: http
               containerPort: {{ .Values.service.port }}
