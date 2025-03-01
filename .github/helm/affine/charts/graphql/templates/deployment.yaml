@@ -64,7 +64,7 @@ spec:
           - name: REDIS_SERVER_PASSWORD
             valueFrom:
               secretKeyRef:
-                name: {{ default (print (include "graphql.fullname" .) "-redis" ) .Values.global.redis.secret.name }}
+                name: {{ default "redis-password" .Values.global.redis.secret.name }}
                 key: {{ .Values.global.redis.secret.key }}
           {{- end }}
           - name: REDIS_SERVER_DATABASE
