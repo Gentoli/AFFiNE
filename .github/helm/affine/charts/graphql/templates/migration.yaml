@@ -13,15 +13,23 @@ spec:
   template:
     spec:
       serviceAccountName: {{ include "graphql.serviceAccountName" . }}
+      initContainers:
+        - name: empty-file
+          image: alpine
+          command: ["sh", "-c", "touch /mnt/schema.gql"]
+          volumeMounts:
+          - name: config
+            mountPath: /mnt
       containers:
       - name: {{ .Chart.Name }}
         image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+        imagePullPolicy: Always
         command: ["yarn", "predeploy"]
         env:
           - name: NODE_ENV
             value: "{{ .Values.env }}"
           - name: AFFINE_ENV
-            value: "{{ .Release.Namespace }}"
+            value: "{{ .Values.env }}"
           - name: DEPLOYMENT_TYPE
             value: "{{ .Values.global.deployment.type }}"
           - name: DEPLOYMENT_PLATFORM
@@ -29,8 +37,8 @@ spec:
           - name: DATABASE_PASSWORD
             valueFrom:
               secretKeyRef:
-                name: pg-postgresql
-                key: postgres-password
+                name: {{ default (print (include "graphql.fullname" .) "-pg" ) .Values.global.database.secret.name }}
+                key: {{ .Values.global.database.secret.key }}
           - name: DATABASE_URL
             value: postgres://{{ .Values.global.database.user }}:$(DATABASE_PASSWORD)@{{ .Values.global.database.host }}:{{ .Values.global.database.port }}/{{ .Values.global.database.name }}
           - name: REDIS_SERVER_HOST
@@ -48,5 +56,20 @@ spec:
           requests:
             cpu: '100m'
             memory: '200Mi'
+        volumeMounts:
+          - name: config
+            mountPath: {{ .Values.app.config.path }}
+            subPath: .affine
+          - name: config
+            mountPath: /app/dist/schema.gql
+            subPath: schema.gql
       restartPolicy: Never
+      volumes:
+        - name: config
+          {{- if .Values.app.config.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "graphql.fullname" . }}-config
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
   backoffLimit: 1
