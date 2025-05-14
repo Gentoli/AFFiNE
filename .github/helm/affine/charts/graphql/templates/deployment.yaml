@@ -99,8 +99,9 @@ spec:
             - name: config
               mountPath: {{ .Values.app.config.path }}
               subPath: .affine
+            {{- /* the app writes to this file on startup*/}}
             - name: config
-              mountPath: /app/dist/schema.gql
+              mountPath: /app/src/schema.gql
               subPath: schema.gql
             - name: cache
               mountPath: /app/node_modules/.cache
