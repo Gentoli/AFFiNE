@@ -50,8 +50,8 @@ spec:
           - name: REDIS_SERVER_PASSWORD
             valueFrom:
               secretKeyRef:
-                name: redis
-                key: redis-password
+                name: {{ default "redis-password" .Values.global.redis.secret.name }}
+                key: {{ .Values.global.redis.secret.key }}
         resources:
           requests:
             cpu: '100m'

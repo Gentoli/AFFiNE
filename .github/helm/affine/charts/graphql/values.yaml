@@ -15,6 +15,12 @@ app:
   # AFFINE_SERVER_HOST
   host: '0.0.0.0'
   https: true
+  config:
+    path: '/.affine'
+    persistence:
+      enabled: false
+      accessMode: ReadWriteMany
+      size: 1Gi
 
 serviceAccount:
   create: true
