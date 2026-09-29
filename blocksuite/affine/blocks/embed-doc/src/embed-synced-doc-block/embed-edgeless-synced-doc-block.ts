@@ -3,12 +3,7 @@ import {
   EdgelessCRUDIdentifier,
   reassociateConnectorsCommand,
 } from '@blocksuite/affine-block-surface';
-import {
-  type AliasInfo,
-  EmbedSyncedDocBlockSchema,
-  SYNCED_MIN_HEIGHT,
-  SYNCED_MIN_WIDTH,
-} from '@blocksuite/affine-model';
+import { type AliasInfo } from '@blocksuite/affine-model';
 import {
   EMBED_CARD_HEIGHT,
   EMBED_CARD_WIDTH,
@@ -17,16 +12,14 @@ import {
   ThemeExtensionIdentifier,
   ThemeProvider,
 } from '@blocksuite/affine-shared/services';
-import { Bound, clamp } from '@blocksuite/global/gfx';
+import { Bound } from '@blocksuite/global/gfx';
 import { type BlockComponent, BlockStdScope } from '@blocksuite/std';
-import { GfxViewInteractionExtension } from '@blocksuite/std/gfx';
 import { html, nothing } from 'lit';
-import { query, queryAsync } from 'lit/decorators.js';
+import { query } from 'lit/decorators.js';
 import { choose } from 'lit/directives/choose.js';
 import { classMap } from 'lit/directives/class-map.js';
 import { guard } from 'lit/directives/guard.js';
 import { styleMap } from 'lit/directives/style-map.js';
-import { when } from 'lit/directives/when.js';
 
 import { EmbedSyncedDocConfigExtension } from './configs';
 import { EmbedSyncedDocBlockComponent } from './embed-synced-doc-block';
@@ -37,8 +30,8 @@ export class EmbedEdgelessSyncedDocBlockComponent extends toEdgelessEmbedBlock(
   @query('.affine-embed-synced-doc-edgeless-header-wrapper')
   accessor headerWrapper: HTMLDivElement | null = null;
 
-  @queryAsync('affine-preview-root')
-  accessor contentElement!: Promise<BlockComponent | null>;
+  @query('affine-preview-root')
+  accessor contentElement: BlockComponent | null = null;
 
   protected override _renderSyncedView = () => {
     const { syncedDoc, editorMode } = this;
@@ -129,22 +122,20 @@ export class EmbedEdgelessSyncedDocBlockComponent extends toEdgelessEmbedBlock(
           <div class="affine-embed-synced-doc-edgeless-header-wrapper">
             ${header}
           </div>
-          ${when(
-            !this.model.isFolded,
-            () =>
-              html`<div class="affine-embed-synced-doc-editor">
-                  ${this.isPageMode && this._isEmptySyncedDoc
-                    ? html`
-                        <div class="affine-embed-synced-doc-editor-empty">
-                          <span>
-                            This is a linked doc, you can add content here.
-                          </span>
-                        </div>
-                      `
-                    : guard([editorMode, syncedDoc], renderEditor)}
-                </div>
-                <div class="affine-embed-synced-doc-editor-overlay"></div>`
-          )}
+          <div class="affine-embed-synced-doc-editor">
+            ${
+              this.isPageMode && this._isEmptySyncedDoc
+                ? html`
+                    <div class="affine-embed-synced-doc-editor-empty">
+                      <span>
+                        This is a linked doc, you can add content here.
+                      </span>
+                    </div>
+                  `
+                : guard([editorMode, syncedDoc], renderEditor)
+            }
+          </div>
+          <div class="affine-embed-synced-doc-editor-overlay"></div>
         </div>
       `
     );
@@ -205,60 +196,3 @@ export class EmbedEdgelessSyncedDocBlockComponent extends toEdgelessEmbedBlock(
 
   override accessor useCaptionEditor = true;
 }
-
-export const EmbedSyncedDocInteraction =
-  GfxViewInteractionExtension<EmbedEdgelessSyncedDocBlockComponent>(
-    EmbedSyncedDocBlockSchema.model.flavour,
-    {
-      resizeConstraint: {
-        minWidth: SYNCED_MIN_WIDTH,
-        minHeight: SYNCED_MIN_HEIGHT,
-      },
-
-      handleRotate: () => {
-        return {
-          beforeRotate(context) {
-            context.set({
-              rotatable: false,
-            });
-          },
-        };
-      },
-
-      handleResize: ({ model }) => {
-        const initialScale = model.props.scale ?? 1;
-
-        return {
-          onResizeStart: context => {
-            context.default(context);
-            model.stash('scale');
-          },
-          onResizeMove: context => {
-            const { lockRatio, originalBound, constraint, newBound } = context;
-
-            let scale = initialScale;
-            const realWidth = originalBound.w / initialScale;
-
-            if (lockRatio) {
-              scale = newBound.w / realWidth;
-            }
-
-            const newWidth = newBound.w / scale;
-
-            newBound.w =
-              clamp(newWidth, constraint.minWidth, constraint.maxWidth) * scale;
-            newBound.h =
-              clamp(newBound.h, constraint.minHeight, constraint.maxHeight) *
-              scale;
-
-            model.props.scale = scale;
-            model.xywh = newBound.serialize();
-          },
-          onResizeEnd: context => {
-            context.default(context);
-            model.pop('scale');
-          },
-        };
-      },
-    }
-  );

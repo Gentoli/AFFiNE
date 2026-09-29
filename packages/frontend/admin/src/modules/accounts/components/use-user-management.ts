@@ -2,7 +2,6 @@ import {
   useMutateQueryResource,
   useMutation,
 } from '@affine/admin/use-mutation';
-import { useQuery } from '@affine/admin/use-query';
 import { useAsyncCallback } from '@affine/core/components/hooks/affine-async-hooks';
 import {
   createChangePasswordUrlMutation,
@@ -10,7 +9,6 @@ import {
   deleteUserMutation,
   disableUserMutation,
   enableUserMutation,
-  getUsersCountQuery,
   type ImportUsersInput,
   type ImportUsersMutation,
   importUsersMutation,
@@ -225,15 +223,6 @@ export const useDisableUser = () => {
   return disableById;
 };
 
-export const useUserCount = () => {
-  const {
-    data: { usersCount },
-  } = useQuery({
-    query: getUsersCountQuery,
-  });
-  return usersCount;
-};
-
 export const useImportUsers = () => {
   const { trigger: importUsers } = useMutation({
     mutation: importUsersMutation,
@@ -334,6 +323,7 @@ export const useExportUsers = () => {
         });
         dataToCopy.push(row);
       });
+      // oxlint-disable-next-line typescript/no-floating-promises
       navigator.clipboard.writeText(JSON.stringify(dataToCopy, null, 2));
       callback?.();
     },

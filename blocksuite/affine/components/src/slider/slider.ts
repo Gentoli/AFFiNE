@@ -92,7 +92,7 @@ export class Slider extends WithDisposable(LitElement) {
 
     const dispose = on(this, 'pointermove', this._onPointerMove);
     this._disposables.add(once(this, 'pointerup', dispose));
-    this._disposables.add(once(this, 'pointerout', dispose));
+    this._disposables.add(once(this, 'pointerleave', dispose));
   };
 
   private readonly _onPointerMove = (e: PointerEvent) => {
@@ -151,9 +151,11 @@ export class Slider extends WithDisposable(LitElement) {
       <div class="drag-handle"></div>
       <div class="bottom-line"></div>
       <div class="slider-selected-overlay"></div>
-      ${this.tooltip
-        ? html`<affine-tooltip .offset=${8}>${this.tooltip}</affine-tooltip>`
-        : nothing}
+      ${
+        this.tooltip
+          ? html`<affine-tooltip .offset=${8}>${this.tooltip}</affine-tooltip>`
+          : nothing
+      }
     </div>`;
   }
 }

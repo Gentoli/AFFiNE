@@ -9,7 +9,7 @@ import {
 } from '@toeverything/infra';
 import { nanoid } from 'nanoid';
 import { distinctUntilChanged, map, switchMap } from 'rxjs';
-import { Array as YArray, Map as YMap, transact } from 'yjs';
+import { applyUpdate, Array as YArray, Map as YMap, transact } from 'yjs';
 
 import type { WorkspaceService } from '../../workspace';
 import type { DocPropertiesStore } from './doc-properties';
@@ -142,6 +142,25 @@ export class DocsStore extends Store {
     );
   }
 
+  watchAllDocTitle() {
+    return yjsGetPath(
+      this.workspaceService.workspace.rootYDoc.getMap('meta'),
+      'pages'
+    ).pipe(
+      switchMap(pages => yjsObservePath(pages, '*.title')),
+      map(pages => {
+        if (pages instanceof YArray) {
+          return pages.map(v => ({
+            id: v.get('id') as string,
+            title: (v.get('title') ?? '') as string,
+          }));
+        } else {
+          return [];
+        }
+      })
+    );
+  }
+
   watchNonTrashDocIds() {
     return yjsGetPath(
       this.workspaceService.workspace.rootYDoc.getMap('meta'),
@@ -227,6 +246,31 @@ export class DocsStore extends Store {
 
   setDocMeta(id: string, meta: Partial<DocMeta>) {
     this.workspaceService.workspace.docCollection.meta.setDocMeta(id, meta);
+  }
+
+  async applyDocLifecycle(
+    id: string,
+    lifecycle: 'trash' | 'restore' | 'delete'
+  ) {
+    const workspace = this.workspaceService.workspace;
+    if (workspace.flavour === 'local') {
+      if (lifecycle === 'delete') {
+        workspace.docCollection.removeDoc(id);
+      } else {
+        this.setDocMeta(
+          id,
+          lifecycle === 'trash'
+            ? { trash: true, trashDate: Date.now() }
+            : { trash: false, trashDate: undefined }
+        );
+      }
+      return;
+    }
+    const result = await workspace.engine.doc.applyDocLifecycle(id, lifecycle);
+    applyUpdate(workspace.rootYDoc, result.rootUpdate, 'server-lifecycle');
+    if (lifecycle === 'delete') {
+      await workspace.engine.doc.storage.deleteDoc(id);
+    }
   }
 
   setDocPrimaryModeSetting(id: string, mode: DocMode) {

@@ -1,108 +1,99 @@
 import { Button } from '@affine/admin/components/ui/button';
 import { Input } from '@affine/admin/components/ui/input';
-import { useQuery } from '@affine/admin/use-query';
-import { getUserByEmailQuery } from '@affine/graphql';
+import type { FeatureType } from '@affine/graphql';
 import { ExportIcon, ImportIcon, PlusIcon } from '@blocksuite/icons/rc';
 import type { Table } from '@tanstack/react-table';
 import {
+  type ChangeEvent,
+  type Dispatch,
   type SetStateAction,
-  startTransition,
   useCallback,
   useEffect,
-  useMemo,
   useState,
 } from 'react';
 
+import { DiscardChanges } from '../../../components/shared/discard-changes';
+import { FeatureFilterPopover } from '../../../components/shared/feature-filter-popover';
+import { useDebouncedValue } from '../../../hooks/use-debounced-value';
+import { useServerConfig } from '../../common';
 import { useRightPanel } from '../../panel/context';
 import type { UserType } from '../schema';
-import { DiscardChanges } from './discard-changes';
 import { ExportUsersDialog } from './export-users-dialog';
 import { ImportUsersDialog } from './import-users';
 import { CreateUserForm } from './user-form';
 
 interface DataTableToolbarProps<TData> {
-  data: TData[];
-  setDataTable: (data: TData[]) => void;
   selectedUsers: UserType[];
   table?: Table<TData>;
-}
-
-const useSearch = () => {
-  const [value, setValue] = useState('');
-  const { data } = useQuery({
-    query: getUserByEmailQuery,
-    variables: { email: value },
-  });
-
-  const result = useMemo(() => data?.userByEmail, [data]);
-
-  return {
-    result,
-    query: setValue,
-  };
-};
-
-function useDebouncedValue<T>(value: T, delay: number): T {
-  const [debouncedValue, setDebouncedValue] = useState(value);
-
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedValue(value);
-    }, delay);
-
-    return () => {
-      clearTimeout(handler);
-    };
-  }, [value, delay]);
-
-  return debouncedValue;
+  keyword: string;
+  onKeywordChange: Dispatch<SetStateAction<string>>;
+  selectedFeatures: FeatureType[];
+  onFeaturesChange: Dispatch<SetStateAction<FeatureType[]>>;
 }
 
 export function DataTableToolbar<TData>({
-  data,
   selectedUsers,
-  setDataTable,
   table,
+  keyword,
+  onKeywordChange,
+  selectedFeatures,
+  onFeaturesChange,
 }: DataTableToolbarProps<TData>) {
-  const [value, setValue] = useState('');
+  const [value, setValue] = useState(keyword);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
-  const debouncedValue = useDebouncedValue(value, 1000);
-  const { setPanelContent, openPanel, closePanel, isOpen } = useRightPanel();
-  const { result, query } = useSearch();
+  const debouncedValue = useDebouncedValue(value, 500);
+  const {
+    setPanelContent,
+    openPanel,
+    closePanel,
+    isOpen,
+    hasDirtyChanges,
+    setHasDirtyChanges,
+  } = useRightPanel();
+  const serverConfig = useServerConfig();
+  const availableFeatures = serverConfig.availableUserFeatures ?? [];
 
   const handleConfirm = useCallback(() => {
-    setPanelContent(<CreateUserForm onComplete={closePanel} />);
+    setPanelContent(
+      <CreateUserForm
+        onComplete={closePanel}
+        onDirtyChange={setHasDirtyChanges}
+      />
+    );
     if (dialogOpen) {
       setDialogOpen(false);
     }
     if (!isOpen) {
       openPanel();
     }
-  }, [setPanelContent, closePanel, dialogOpen, isOpen, openPanel]);
+  }, [
+    setPanelContent,
+    closePanel,
+    dialogOpen,
+    isOpen,
+    openPanel,
+    setHasDirtyChanges,
+  ]);
 
   useEffect(() => {
-    query(debouncedValue);
-  }, [debouncedValue, query]);
+    setValue(keyword);
+  }, [keyword]);
 
   useEffect(() => {
-    startTransition(() => {
-      if (!debouncedValue) {
-        setDataTable(data);
-      } else if (result) {
-        setDataTable([result as TData]);
-      } else {
-        setDataTable([]);
-      }
-    });
-  }, [data, debouncedValue, result, setDataTable]);
+    onKeywordChange(debouncedValue.trim());
+  }, [debouncedValue, onKeywordChange]);
 
-  const onValueChange = useCallback(
-    (e: { currentTarget: { value: SetStateAction<string> } }) => {
-      setValue(e.currentTarget.value);
+  const onValueChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
+    setValue(e.currentTarget.value);
+  }, []);
+
+  const handleFeatureToggle = useCallback(
+    (features: FeatureType[]) => {
+      onFeaturesChange(features);
     },
-    []
+    [onFeaturesChange]
   );
 
   const handleCancel = useCallback(() => {
@@ -110,11 +101,11 @@ export function DataTableToolbar<TData>({
   }, []);
 
   const handleOpenConfirm = useCallback(() => {
-    if (isOpen) {
+    if (hasDirtyChanges) {
       return setDialogOpen(true);
     }
     return handleConfirm();
-  }, [handleConfirm, isOpen]);
+  }, [handleConfirm, hasDirtyChanges]);
 
   const handleExportUsers = useCallback(() => {
     if (!table) return;
@@ -174,9 +165,15 @@ export function DataTableToolbar<TData>({
       </div>
 
       <div className="flex items-center gap-y-2 flex-wrap justify-end gap-2">
+        <FeatureFilterPopover
+          selectedFeatures={selectedFeatures}
+          availableFeatures={availableFeatures}
+          onChange={handleFeatureToggle}
+          align="end"
+        />
         <div className="flex">
           <Input
-            placeholder="Search Email"
+            placeholder="Search Email / UUID"
             value={value}
             onChange={onValueChange}
             className="h-8 w-[150px] lg:w-[250px]"

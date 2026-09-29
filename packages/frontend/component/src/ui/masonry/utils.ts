@@ -82,6 +82,7 @@ export const calcLayout = (
 
   groups.forEach((group, index) => {
     const heightStack = Array.from({ length: columns }, () => 0);
+    const ratioStack = Array.from({ length: columns }, () => 0);
     if (index !== 0) {
       finalHeight += groupsGap;
     }
@@ -101,24 +102,58 @@ export const calcLayout = (
       return;
     }
 
-    finalHeight += groupHeaderLayout.h + groupHeaderGapWithItems;
+    finalHeight +=
+      groupHeaderLayout.h +
+      // if group header is empty, don't add gap
+      (groupHeaderLayout.h > 0 ? groupHeaderGapWithItems : 0);
     // calculate group items
     group.items.forEach(item => {
       const itemId = group.id ? `${group.id}:${item.id}` : item.id;
-      const minHeight = Math.min(...heightStack);
-      const minHeightIndex = heightStack.indexOf(minHeight);
-      const hasGap = heightStack[minHeightIndex] ? gapY : 0;
-      const x = minHeightIndex * (width + gapX) + paddingX;
-      const y = finalHeight + minHeight + hasGap;
+      const ratioMode = 'ratio' in item;
+      const height = ratioMode ? item.ratio * width : item.height;
 
-      heightStack[minHeightIndex] += item.height + hasGap;
-      layout.set(itemId, {
-        type: 'item',
-        x,
-        y,
-        w: width,
-        h: item.height,
-      });
+      const aroundGapXValue =
+        columns > 1
+          ? (totalWidth - paddingX * 2 - width * columns) / (columns - 1)
+          : 0;
+      const gapXValue = Math.max(gapX, aroundGapXValue);
+
+      if (ratioMode) {
+        const minRatio = Math.min(...ratioStack);
+        const minRatioIndex = ratioStack.indexOf(minRatio);
+        const minHeight = heightStack[minRatioIndex];
+        const hasGap = heightStack[minRatioIndex] ? gapY : 0;
+        const x = minRatioIndex * (width + gapXValue) + paddingX;
+        const y = finalHeight + minHeight + hasGap;
+
+        ratioStack[minRatioIndex] += item.ratio * 10000;
+        heightStack[minRatioIndex] += height + hasGap;
+        layout.set(itemId, {
+          type: 'item',
+          x,
+          y,
+          w: width,
+          h: height,
+        });
+      } else {
+        const minHeight = Math.min(...heightStack);
+        const minHeightIndex = heightStack.indexOf(minHeight);
+        const hasGap = heightStack[minHeightIndex] ? gapY : 0;
+        const x = minHeightIndex * (width + gapXValue) + paddingX;
+        const y = finalHeight + minHeight + hasGap;
+
+        const ratio = height / width;
+        heightStack[minHeightIndex] += height + hasGap;
+        ratioStack[minHeightIndex] += ratio * 10000;
+
+        layout.set(itemId, {
+          type: 'item',
+          x,
+          y,
+          w: width,
+          h: height,
+        });
+      }
     });
 
     const groupHeight = Math.max(...heightStack) + paddingY;
@@ -164,7 +199,7 @@ export const calcSticky = (options: {
 
   const stickyGroupEntry = groupEntries.find(([_, xywh], index) => {
     const next = groupEntries[index + 1];
-    return xywh.y < scrollY && (!next || next[1].y > scrollY);
+    return xywh.y <= scrollY && (!next || next[1].y > scrollY);
   });
 
   return stickyGroupEntry

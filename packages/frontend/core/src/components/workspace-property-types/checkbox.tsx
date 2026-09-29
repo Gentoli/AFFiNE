@@ -1,4 +1,4 @@
-import { Checkbox, Menu, MenuItem, PropertyValue } from '@affine/component';
+import { Checkbox, MenuItem, PropertyValue } from '@affine/component';
 import type { FilterParams } from '@affine/core/modules/collection-rules';
 import { useI18n } from '@affine/i18n';
 import { CheckBoxCheckLinearIcon } from '@blocksuite/icons/rc';
@@ -7,6 +7,7 @@ import { useCallback } from 'react';
 import { PlainTextDocGroupHeader } from '../explorer/docs-view/group-header';
 import { StackProperty } from '../explorer/docs-view/stack-property';
 import type { DocListPropertyProps, GroupHeaderProps } from '../explorer/types';
+import { FilterValueMenu } from '../filter/filter-value-menu';
 import type { PropertyValueProps } from '../properties/types';
 import * as styles from './checkbox.css';
 
@@ -40,18 +41,24 @@ export const CheckboxValue = ({
 
 export const CheckboxFilterValue = ({
   filter,
+  isDraft,
+  onDraftCompleted,
   onChange,
 }: {
   filter: FilterParams;
-  onChange: (filter: FilterParams) => void;
+  isDraft?: boolean;
+  onDraftCompleted?: () => void;
+  onChange?: (filter: FilterParams) => void;
 }) => {
   return (
-    <Menu
+    <FilterValueMenu
+      isDraft={isDraft}
+      onDraftCompleted={onDraftCompleted}
       items={
         <>
           <MenuItem
             onClick={() => {
-              onChange({
+              onChange?.({
                 ...filter,
                 value: 'true',
               });
@@ -62,7 +69,7 @@ export const CheckboxFilterValue = ({
           </MenuItem>
           <MenuItem
             onClick={() => {
-              onChange({
+              onChange?.({
                 ...filter,
                 value: 'false',
               });
@@ -75,7 +82,7 @@ export const CheckboxFilterValue = ({
       }
     >
       <span>{filter.value === 'true' ? 'True' : 'False'}</span>
-    </Menu>
+    </FilterValueMenu>
   );
 };
 
@@ -88,7 +95,7 @@ export const CheckboxDocListProperty = ({
 
   return (
     <StackProperty icon={<CheckBoxCheckLinearIcon />}>
-      {/* 
+      {/*
         Has circular dependency issue (WorkspacePropertyName -> WorkspacePropertyTypes -> Checkbox)
         <WorkspacePropertyName propertyInfo={propertyInfo} /> 
       */}
@@ -101,7 +108,11 @@ export const CheckboxGroupHeader = ({
   groupId,
   docCount,
 }: GroupHeaderProps) => {
-  const text = groupId === 'true' ? 'Checked' : 'Unchecked';
+  const t = useI18n();
+  const text =
+    groupId === 'true'
+      ? t['com.affine.all-docs.group.is-checked']()
+      : t['com.affine.all-docs.group.is-not-checked']();
   return (
     <PlainTextDocGroupHeader docCount={docCount} groupId={groupId}>
       {text}

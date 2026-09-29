@@ -1,11 +1,16 @@
 import { createIdentifier } from '@blocksuite/global/di';
 import type { ExtensionType } from '@blocksuite/store';
 
+import type { CitationEvents } from './citation.js';
+import type { CodeBlockEvents } from './code-block.js';
 import type { OutDatabaseAllEvents } from './database.js';
 import type { LinkToolbarEvents } from './link.js';
 import type { NoteEvents } from './note.js';
 import type { SlashMenuEvents } from './slash-menu.js';
 import type {
+  AttachmentReloadedEvent,
+  AttachmentReloadedEventInToolbar,
+  AttachmentUpgradedEvent,
   AttachmentUploadedEvent,
   BlockCreationEvent,
   DocCreatedEvent,
@@ -13,6 +18,7 @@ import type {
   ElementCreationEvent,
   ElementLockEvent,
   ElementUpdatedEvent,
+  LatexEvent,
   LinkedDocCreatedEvent,
   LinkEvent,
   MindMapCollapseEvent,
@@ -22,7 +28,9 @@ import type {
 export type TelemetryEventMap = OutDatabaseAllEvents &
   LinkToolbarEvents &
   SlashMenuEvents &
-  NoteEvents & {
+  CodeBlockEvents &
+  NoteEvents &
+  CitationEvents & {
     DocCreated: DocCreatedEvent;
     Link: TelemetryEvent;
     LinkedDocCreated: LinkedDocCreatedEvent;
@@ -31,10 +39,15 @@ export type TelemetryEventMap = OutDatabaseAllEvents &
     CanvasElementUpdated: ElementUpdatedEvent;
     EdgelessElementLocked: ElementLockEvent;
     ExpandedAndCollapsed: MindMapCollapseEvent;
+    AttachmentReloadedEvent:
+      | AttachmentReloadedEvent
+      | AttachmentReloadedEventInToolbar;
+    AttachmentUpgradedEvent: AttachmentUpgradedEvent;
     AttachmentUploadedEvent: AttachmentUploadedEvent;
     BlockCreated: BlockCreationEvent;
     EdgelessToolPicked: EdgelessToolPickedEvent;
     CreateEmbedBlock: LinkEvent;
+    Latex: LatexEvent;
   };
 
 export interface TelemetryService {

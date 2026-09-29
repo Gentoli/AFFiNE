@@ -1,15 +1,13 @@
+import { DisposableGroup } from '@blocksuite/global/disposable';
 import { BlockSuiteError, ErrorCode } from '@blocksuite/global/exceptions';
 import { nextTick } from '@blocksuite/global/utils';
 import { Subject } from 'rxjs';
 
-import {
-  BlockModel,
-  type BlockSchemaType,
-  type DraftModel,
-  type Store,
-  toDraftModel,
-} from '../model/index.js';
-import type { Schema } from '../schema/index.js';
+import { BlockModel } from '../model/block/block-model.js';
+import { type DraftModel, toDraftModel } from '../model/block/draft.js';
+import type { BlockSchemaType } from '../model/block/zod.js';
+import type { Store } from '../model/store/store.js';
+import type { Schema } from '../schema/schema.js';
 import { AssetsManager } from './assets.js';
 import { BaseBlockTransformer } from './base.js';
 import type {
@@ -66,6 +64,8 @@ export class Transformer {
   private readonly _schema: Schema;
 
   private readonly _docCRUD: DocCRUD;
+
+  private readonly _disposables: DisposableGroup = new DisposableGroup();
 
   private readonly _slots: TransformerSlots = {
     beforeImport: new Subject<BeforeImportPayload>(),
@@ -245,8 +245,9 @@ export class Transformer {
     parent?: string,
     index?: number
   ): Promise<Slice | undefined> => {
-    SliceSnapshotSchema.parse(snapshot);
     try {
+      SliceSnapshotSchema.parse(snapshot);
+
       this._slots.beforeImport.next({
         type: 'slice',
         snapshot,
@@ -365,13 +366,16 @@ export class Transformer {
     this._docCRUD = docCRUD;
 
     middlewares.forEach(middleware => {
-      middleware({
+      const cleanup = middleware({
         slots: this._slots,
         docCRUD: this._docCRUD,
         assetsManager: this._assetsManager,
         adapterConfigs: this._adapterConfigs,
         transformerConfigs: this._transformerConfigs,
       });
+      if (cleanup) {
+        this._disposables.add(cleanup);
+      }
     });
   }
 
@@ -525,11 +529,11 @@ export class Transformer {
     for (let index = 0; index < nodes.length; index++) {
       const node = nodes[index];
       const { draft } = node;
-      const { id, flavour } = draft;
+      const { id, flavour, props } = draft;
 
       const actualIndex =
         startIndex !== undefined ? startIndex + index : undefined;
-      doc.addBlock(flavour, { id, ...draft.props }, parentId, actualIndex);
+      doc.addBlock(flavour, { id, ...props }, parentId, actualIndex);
 
       const model = doc.getBlock(id)?.model;
       if (!model) {
@@ -643,6 +647,11 @@ export class Transformer {
   }
 
   reset() {
+    this._assetsManager.cleanup();
+  }
+
+  [Symbol.dispose]() {
+    this._disposables.dispose();
     this._assetsManager.cleanup();
   }
 }

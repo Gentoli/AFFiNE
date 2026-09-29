@@ -1,28 +1,21 @@
-import { Masonry, type MasonryGroup, useConfirmModal } from '@affine/component';
+import { Button, usePromptModal } from '@affine/component';
 import {
   createDocExplorerContext,
   DocExplorerContext,
 } from '@affine/core/components/explorer/context';
-import { DocListItem } from '@affine/core/components/explorer/docs-view/doc-list-item';
+import { DocsExplorer } from '@affine/core/components/explorer/docs-view/docs-list';
+import type { ExplorerDisplayPreference } from '@affine/core/components/explorer/types';
 import { Filters } from '@affine/core/components/filter';
-import { ListFloatingToolbar } from '@affine/core/components/page-list/components/list-floating-toolbar';
-import { WorkspacePropertyTypes } from '@affine/core/components/workspace-property-types';
+import {
+  CollectionService,
+  PinnedCollectionService,
+} from '@affine/core/modules/collection';
 import { CollectionRulesService } from '@affine/core/modules/collection-rules';
 import type { FilterParams } from '@affine/core/modules/collection-rules/types';
-import { DocsService } from '@affine/core/modules/doc';
-import { FeatureFlagService } from '@affine/core/modules/feature-flag';
-import { WorkspacePropertyService } from '@affine/core/modules/workspace-property';
-import { Trans, useI18n } from '@affine/i18n';
+import { WorkspaceLocalState } from '@affine/core/modules/workspace';
+import { useI18n } from '@affine/i18n';
 import { useLiveData, useService } from '@toeverything/infra';
-import { cssVarV2 } from '@toeverything/theme/v2';
-import {
-  memo,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-} from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import {
   ViewBody,
@@ -30,137 +23,218 @@ import {
   ViewIcon,
   ViewTitle,
 } from '../../../../modules/workbench';
-import { AllPage as AllPageOld } from '../all-page-old/all-page';
 import { AllDocSidebarTabs } from '../layouts/all-doc-sidebar-tabs';
 import * as styles from './all-page.css';
 import { AllDocsHeader } from './all-page-header';
 import { MigrationAllDocsDataNotification } from './migration-data';
+import { PinnedCollections } from './pinned-collections';
 
-const GroupHeader = memo(function GroupHeader({
-  groupId,
-  collapsed,
-  itemCount,
-}: {
-  groupId: string;
-  collapsed?: boolean;
-  itemCount: number;
-}) {
-  const contextValue = useContext(DocExplorerContext);
-  const propertyService = useService(WorkspacePropertyService);
-  const allProperties = useLiveData(propertyService.sortedProperties$);
-  const groupBy = useLiveData(contextValue.groupBy$);
-
-  const groupType = groupBy?.type;
-  const groupKey = groupBy?.key;
-
-  const header = useMemo(() => {
-    if (groupType === 'property') {
-      const property = allProperties.find(p => p.id === groupKey);
-      if (!property) return null;
-
-      const config = WorkspacePropertyTypes[property.type];
-      if (!config?.groupHeader) return null;
-      return (
-        <config.groupHeader
-          groupId={groupId}
-          docCount={itemCount}
-          collapsed={!!collapsed}
-        />
-      );
-    } else {
-      return '// TODO: ' + groupType;
-    }
-  }, [allProperties, collapsed, groupId, groupKey, groupType, itemCount]);
-
-  if (!groupType) {
-    return null;
-  }
-
-  return header;
-});
-
-const calcCardHeightById = (id: string) => {
-  const max = 5;
-  const min = 1;
-  const code = id.charCodeAt(0);
-  const value = Math.floor((code % (max - min)) + min);
-  return 250 + value * 10;
+const DefaultDisplayPreference: {
+  [key in ViewMode]: ExplorerDisplayPreference;
+} = {
+  grid: {
+    view: 'grid',
+    displayProperties: [
+      'system:createdAt',
+      'system:updatedAt',
+      'system:createdBy',
+      'system:tags',
+    ],
+    orderBy: {
+      type: 'system',
+      key: 'updatedAt',
+      desc: true,
+    },
+    groupBy: undefined,
+    showDocIcon: true,
+    showDocPreview: true,
+    quickFavorite: true,
+    showDragHandle: true,
+    showMoreOperation: true,
+  },
+  masonry: {
+    view: 'masonry',
+    displayProperties: [
+      'system:createdAt',
+      'system:updatedAt',
+      'system:createdBy',
+      'system:tags',
+    ],
+    orderBy: {
+      type: 'system',
+      key: 'updatedAt',
+      desc: true,
+    },
+    groupBy: undefined,
+    showDocIcon: true,
+    showDocPreview: true,
+    quickFavorite: true,
+    showDragHandle: true,
+    showMoreOperation: true,
+  },
+  list: {
+    view: 'list',
+    displayProperties: [
+      'system:createdAt',
+      'system:updatedAt',
+      'system:createdBy',
+      'system:tags',
+    ],
+    orderBy: {
+      type: 'system',
+      key: 'updatedAt',
+      desc: true,
+    },
+    groupBy: {
+      type: 'system',
+      key: 'updatedAt',
+    },
+    showDocIcon: true,
+    showDocPreview: true,
+    quickFavorite: true,
+    showDragHandle: true,
+    showMoreOperation: true,
+  },
 };
 
-const DocListItemComponent = memo(function DocListItemComponent({
-  itemId,
-  groupId,
-}: {
-  groupId: string;
-  itemId: string;
-}) {
-  return <DocListItem docId={itemId} groupId={groupId} />;
-});
+type ViewMode = NonNullable<ExplorerDisplayPreference['view']>;
 
 export const AllPage = () => {
   const t = useI18n();
-  const docsService = useService(DocsService);
 
-  const [explorerContextValue] = useState(createDocExplorerContext);
+  const collectionService = useService(CollectionService);
+  const pinnedCollectionService = useService(PinnedCollectionService);
+  const {
+    viewMode,
+    setViewMode,
+    selectedCollectionId,
+    setSelectedCollectionId,
+    displayPreference,
+    setDisplayPreference,
+  } = useAllDocsOptions();
 
-  const view = useLiveData(explorerContextValue.view$);
-  const filters = useLiveData(explorerContextValue.filters$);
-  const groupBy = useLiveData(explorerContextValue.groupBy$);
-  const orderBy = useLiveData(explorerContextValue.orderBy$);
-  const groups = useLiveData(explorerContextValue.groups$);
-  const selectedDocIds = useLiveData(explorerContextValue.selectedDocIds$);
-  const collapsedGroups = useLiveData(explorerContextValue.collapsedGroups$);
-  const selectMode = useLiveData(explorerContextValue.selectMode$);
+  const isCollectionDataReady = useLiveData(
+    collectionService.collectionDataReady$
+  );
 
-  const { openConfirmModal } = useConfirmModal();
+  const isPinnedCollectionDataReady = useLiveData(
+    pinnedCollectionService.pinnedCollectionDataReady$
+  );
 
-  const masonryItems = useMemo(() => {
-    const items = groups.map((group: any) => {
-      return {
-        id: group.key,
-        Component: groups.length > 1 ? GroupHeader : undefined,
-        height: groups.length > 1 ? 24 : 0,
-        className: styles.groupHeader,
-        items: group.items.map((docId: string) => {
-          return {
-            id: docId,
-            Component: DocListItemComponent,
-            height:
-              view === 'list'
-                ? 42
-                : view === 'grid'
-                  ? 280
-                  : calcCardHeightById(docId),
-            'data-view': view,
-            className: styles.docItem,
-          };
-        }),
-      } satisfies MasonryGroup;
-    });
-    return items;
-  }, [groups, view]);
+  const pinnedCollections = useLiveData(
+    pinnedCollectionService.pinnedCollections$
+  );
+
+  const selectedCollection = useLiveData(
+    selectedCollectionId
+      ? collectionService.collection$(selectedCollectionId)
+      : null
+  );
+
+  useEffect(() => {
+    // if selected collection is not in pinned collections, set selected collection id to null
+    if (
+      isPinnedCollectionDataReady &&
+      selectedCollectionId &&
+      !pinnedCollections.some(c => c.collectionId === selectedCollectionId)
+    ) {
+      setSelectedCollectionId(null);
+    }
+  }, [
+    isPinnedCollectionDataReady,
+    pinnedCollections,
+    selectedCollectionId,
+    setSelectedCollectionId,
+  ]);
+
+  useEffect(() => {
+    // if selected collection is not found, set selected collection id to null
+    if (!selectedCollection && selectedCollectionId && isCollectionDataReady) {
+      setSelectedCollectionId(null);
+    }
+  }, [
+    isCollectionDataReady,
+    selectedCollection,
+    selectedCollectionId,
+    setSelectedCollectionId,
+  ]);
+
+  const selectedCollectionInfo = useLiveData(
+    selectedCollection ? selectedCollection.info$ : null
+  );
+
+  const [tempFilters, setTempFilters] = useState<FilterParams[] | null>(null);
+  const [tempFiltersInitial, setTempFiltersInitial] =
+    useState<FilterParams | null>(null);
+
+  const [explorerContextValue] = useState(() =>
+    createDocExplorerContext(displayPreference)
+  );
+
+  useEffect(() => {
+    explorerContextValue.displayPreference$.next(displayPreference);
+  }, [displayPreference, explorerContextValue]);
+
+  const groupBy = displayPreference.groupBy;
+  const orderBy = displayPreference.orderBy;
+
+  const { openPromptModal } = usePromptModal();
 
   const collectionRulesService = useService(CollectionRulesService);
   useEffect(() => {
     const subscription = collectionRulesService
       .watch(
-        [
-          ...(filters ?? []),
-          {
-            type: 'system',
-            key: 'empty-journal',
-            method: 'is',
-            value: 'false',
-          },
-          {
-            type: 'system',
-            key: 'trash',
-            method: 'is',
-            value: 'false',
-          },
-        ],
-        groupBy,
-        orderBy
+        selectedCollectionInfo
+          ? {
+              filters: selectedCollectionInfo.rules.filters,
+              groupBy,
+              orderBy,
+              extraAllowList: selectedCollectionInfo.allowList,
+              extraFilters: [
+                {
+                  type: 'system',
+                  key: 'empty-journal',
+                  method: 'is',
+                  value: 'false',
+                },
+                {
+                  type: 'system',
+                  key: 'trash',
+                  method: 'is',
+                  value: 'false',
+                },
+              ],
+            }
+          : {
+              filters:
+                tempFilters && tempFilters.length > 0
+                  ? tempFilters
+                  : [
+                      // if no filters are present, match all non-trash documents
+                      {
+                        type: 'system',
+                        key: 'trash',
+                        method: 'is',
+                        value: 'false',
+                      },
+                    ],
+              groupBy,
+              orderBy,
+              extraFilters: [
+                {
+                  type: 'system',
+                  key: 'empty-journal',
+                  method: 'is',
+                  value: 'false',
+                },
+                {
+                  type: 'system',
+                  key: 'trash',
+                  method: 'is',
+                  value: 'false',
+                },
+              ],
+            }
       )
       .subscribe({
         next: result => {
@@ -175,10 +249,12 @@ export const AllPage = () => {
     };
   }, [
     collectionRulesService,
-    explorerContextValue.groups$,
-    filters,
+    explorerContextValue,
     groupBy,
     orderBy,
+    selectedCollection,
+    selectedCollectionInfo,
+    tempFilters,
   ]);
 
   useEffect(() => {
@@ -195,95 +271,137 @@ export const AllPage = () => {
     };
   }, [explorerContextValue]);
 
-  const handleFilterChange = useCallback(
-    (filters: FilterParams[]) => {
-      explorerContextValue.filters$.next(filters);
+  const handleFilterChange = useCallback((filters: FilterParams[]) => {
+    setTempFilters(filters);
+  }, []);
+
+  const handleSelectCollection = useCallback(
+    (collectionId: string) => {
+      setSelectedCollectionId(collectionId);
+      setTempFilters(null);
     },
-    [explorerContextValue]
+    [setSelectedCollectionId]
   );
 
-  const handleCloseFloatingToolbar = useCallback(() => {
-    explorerContextValue.selectMode$.next(false);
-    explorerContextValue.selectedDocIds$.next([]);
-  }, [explorerContextValue]);
+  const handleSelectAll = useCallback(() => {
+    setSelectedCollectionId(null);
+    setTempFilters(null);
+  }, [setSelectedCollectionId]);
 
-  const handleMultiDelete = useCallback(() => {
-    if (selectedDocIds.length === 0) {
-      return;
+  const handleSaveFilters = useCallback(() => {
+    if (selectedCollectionId) {
+      collectionService.updateCollection(selectedCollectionId, {
+        rules: {
+          filters: tempFilters ?? [],
+        },
+      });
+      setTempFilters(null);
+    } else {
+      openPromptModal({
+        title: t['com.affine.editCollection.saveCollection'](),
+        label: t['com.affine.editCollectionName.name'](),
+        inputOptions: {
+          placeholder: t['com.affine.editCollectionName.name.placeholder'](),
+        },
+        children: t['com.affine.editCollectionName.createTips'](),
+        confirmText: t['com.affine.editCollection.save'](),
+        cancelText: t['com.affine.editCollection.button.cancel'](),
+        confirmButtonOptions: {
+          variant: 'primary',
+        },
+        onConfirm(name) {
+          const id = collectionService.createCollection({
+            name,
+            rules: {
+              filters: tempFilters ?? [],
+            },
+          });
+          pinnedCollectionService.addPinnedCollection({
+            collectionId: id,
+            index: pinnedCollectionService.indexAt('after'),
+          });
+          setTempFilters(null);
+          setSelectedCollectionId(id);
+        },
+      });
     }
+  }, [
+    collectionService,
+    openPromptModal,
+    pinnedCollectionService,
+    selectedCollectionId,
+    setSelectedCollectionId,
+    t,
+    tempFilters,
+  ]);
 
-    openConfirmModal({
-      title: t['com.affine.moveToTrash.confirmModal.title.multiple']({
-        number: selectedDocIds.length.toString(),
-      }),
-      description: t[
-        'com.affine.moveToTrash.confirmModal.description.multiple'
-      ]({
-        number: selectedDocIds.length.toString(),
-      }),
-      cancelText: t['com.affine.confirmModal.button.cancel'](),
-      confirmText: t.Delete(),
-      confirmButtonOptions: {
-        variant: 'error',
-      },
-      onConfirm: () => {
-        for (const docId of selectedDocIds) {
-          const doc = docsService.list.doc$(docId).value;
-          doc?.moveToTrash();
-        }
-      },
-    });
-  }, [docsService.list, openConfirmModal, selectedDocIds, t]);
+  const handleNewTempFilter = useCallback(
+    (params: FilterParams) => {
+      setSelectedCollectionId(null);
+      setTempFilters([]);
+      setTempFiltersInitial(params);
+    },
+    [setSelectedCollectionId]
+  );
+
+  const handleDisplayPreferenceChange = useCallback(
+    (displayPreference: ExplorerDisplayPreference) => {
+      setDisplayPreference(displayPreference);
+    },
+    [setDisplayPreference]
+  );
 
   return (
     <DocExplorerContext.Provider value={explorerContextValue}>
       <ViewTitle title={t['All pages']()} />
       <ViewIcon icon="allDocs" />
       <ViewHeader>
-        <AllDocsHeader />
+        <AllDocsHeader
+          displayPreference={displayPreference}
+          onDisplayPreferenceChange={handleDisplayPreferenceChange}
+          view={viewMode}
+          onViewChange={setViewMode}
+        />
       </ViewHeader>
       <ViewBody>
         <div className={styles.body}>
-          <div className={styles.filterArea}>
-            <MigrationAllDocsDataNotification />
-            <Filters filters={filters ?? []} onChange={handleFilterChange} />
-          </div>
-          <div className={styles.scrollArea}>
-            <Masonry
-              items={masonryItems}
-              gapY={12}
-              gapX={12}
-              groupsGap={12}
-              groupHeaderGapWithItems={12}
-              columns={view === 'list' ? 1 : undefined}
-              itemWidthMin={220}
-              preloadHeight={100}
-              itemWidth={'stretch'}
-              virtualScroll
-              collapsedGroups={collapsedGroups}
-              paddingX={useCallback(
-                (w: number) => (w > 500 ? 24 : w > 393 ? 20 : 16),
-                []
-              )}
+          <MigrationAllDocsDataNotification />
+          <div className={styles.pinnedCollection}>
+            <PinnedCollections
+              activeCollectionId={selectedCollectionId}
+              onActiveAll={handleSelectAll}
+              onActiveCollection={handleSelectCollection}
+              onAddFilter={handleNewTempFilter}
+              hiddenAdd={tempFilters !== null}
             />
           </div>
-        </div>
-        <ListFloatingToolbar
-          open={selectMode}
-          onDelete={handleMultiDelete}
-          onClose={handleCloseFloatingToolbar}
-          content={
-            <Trans
-              i18nKey="com.affine.page.toolbar.selected"
-              count={selectedDocIds.length}
-            >
-              <div style={{ color: cssVarV2.text.secondary }}>
-                {{ count: selectedDocIds.length } as any}
+          <div className={styles.filterArea}>
+            {tempFilters !== null && (
+              <div className={styles.filterInnerArea}>
+                <Filters
+                  // When the selected collection changes, the filters internal state should be reset
+                  key={selectedCollectionId ?? 'all'}
+                  className={styles.filters}
+                  filters={tempFilters}
+                  onChange={handleFilterChange}
+                  defaultDraftFilter={tempFiltersInitial}
+                />
+                <Button
+                  variant="plain"
+                  onClick={() => {
+                    setTempFilters(null);
+                  }}
+                >
+                  {t['Cancel']()}
+                </Button>
+                <Button onClick={handleSaveFilters}>{t['save']()}</Button>
               </div>
-              selected
-            </Trans>
-          }
-        />
+            )}
+          </div>
+          <div className={styles.scrollArea}>
+            <DocsExplorer />
+          </div>
+        </div>
       </ViewBody>
       <AllDocSidebarTabs />
     </DocExplorerContext.Provider>
@@ -291,10 +409,79 @@ export const AllPage = () => {
 };
 
 export const Component = () => {
-  const featureFlagService = useService(FeatureFlagService);
-  const enableNewAllDocsPage = useLiveData(
-    featureFlagService.flags.enable_new_all_docs_page.$
+  return <AllPage />;
+};
+
+/**
+ * Since split view allows users to open multiple all docs simultaneously, each with its own state,
+ * we only read the stored state once during useState initialization to maintain independent states.
+ */
+const useAllDocsOptions = () => {
+  const workspaceLocalState = useService(WorkspaceLocalState);
+
+  const readSavedViewMode = useCallback(() => {
+    return workspaceLocalState.get<ViewMode>('allDocsMode') ?? 'list';
+  }, [workspaceLocalState]);
+
+  const readSavedDisplayPreference = useCallback(
+    (mode: ViewMode) => {
+      const saved = workspaceLocalState.get<ExplorerDisplayPreference>(
+        'allDocsDisplayPreference:' + mode
+      );
+      return {
+        ...DefaultDisplayPreference[mode],
+        ...saved,
+        view: mode,
+      };
+    },
+    [workspaceLocalState]
   );
 
-  return enableNewAllDocsPage ? <AllPage /> : <AllPageOld />;
+  const [viewMode, setViewMode] = useState(readSavedViewMode);
+  const [displayPreference, setDisplayPreference] =
+    useState<ExplorerDisplayPreference>(() =>
+      readSavedDisplayPreference(viewMode)
+    );
+  const [selectedCollectionId, setSelectedCollectionId] = useState(
+    () =>
+      workspaceLocalState.get<string | null>('allDocsSelectedCollectionId') ??
+      null
+  );
+
+  const handleViewModeChange = useCallback(
+    (mode: ViewMode) => {
+      workspaceLocalState.set('allDocsMode', mode);
+      setViewMode(mode);
+      setDisplayPreference(readSavedDisplayPreference(mode));
+    },
+    [workspaceLocalState, readSavedDisplayPreference]
+  );
+
+  const handleDisplayPreferenceChange = useCallback(
+    (displayPreference: ExplorerDisplayPreference) => {
+      workspaceLocalState.set(
+        'allDocsDisplayPreference:' + viewMode,
+        displayPreference
+      );
+      setDisplayPreference(displayPreference);
+    },
+    [viewMode, workspaceLocalState]
+  );
+
+  const handleSelectedCollectionIdChange = useCallback(
+    (collectionId: string | null) => {
+      workspaceLocalState.set('allDocsSelectedCollectionId', collectionId);
+      setSelectedCollectionId(collectionId);
+    },
+    [workspaceLocalState]
+  );
+
+  return {
+    viewMode,
+    setViewMode: handleViewModeChange,
+    displayPreference,
+    setDisplayPreference: handleDisplayPreferenceChange,
+    selectedCollectionId,
+    setSelectedCollectionId: handleSelectedCollectionIdChange,
+  };
 };

@@ -1,5 +1,5 @@
 import { Skeleton } from '@affine/component';
-import { getViewManager } from '@affine/core/blocksuite/manager/migrating-view';
+import { getViewManager } from '@affine/core/blocksuite/manager/view';
 import type { EditorSettingSchema } from '@affine/core/modules/editor-setting';
 import { EditorSettingService } from '@affine/core/modules/editor-setting';
 import { EdgelessCRUDIdentifier } from '@blocksuite/affine/blocks/surface';
@@ -13,6 +13,7 @@ import {
 } from '@blocksuite/affine/std/gfx';
 import type { Block, Store } from '@blocksuite/affine/store';
 import { useFramework } from '@toeverything/infra';
+import clsx from 'clsx';
 import { isEqual } from 'lodash-es';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { map, pairwise } from 'rxjs';
@@ -61,10 +62,11 @@ export const EdgelessSnapshot = (props: Props) => {
       .foundation(framework)
       .theme(framework)
       .database(framework)
-      .linkedDoc(framework).value;
+      .linkedDoc(framework)
+      .codeBlockPreview(framework).value;
     return manager
       .get('preview-edgeless')
-      .concat([ViewportElementExtension('.ref-viewport')]);
+      .concat([ViewportElementExtension('.setting-editor-snapshot')]);
   }, [framework]);
 
   const updateElements = useCallback(() => {
@@ -128,7 +130,7 @@ export const EdgelessSnapshot = (props: Props) => {
   }, [docName, extensions, firstUpdate, updateElements]);
 
   useEffect(() => {
-    // eslint-disable-next-line @typescript-eslint/no-floating-promises
+    // oxlint-disable-next-line typescript/no-floating-promises
     renderEditor();
     return () => editorHostRef.current?.remove();
   }, [renderEditor]);
@@ -155,7 +157,7 @@ export const EdgelessSnapshot = (props: Props) => {
   }, [editorSetting.provider, keyName, updateElements]);
 
   return (
-    <div className={snapshotContainer}>
+    <div className={clsx(snapshotContainer, 'setting-editor-snapshot')}>
       <div className={snapshotTitle}>{title}</div>
       <div className={snapshotLabel}>{title}</div>
       <div ref={wrapperRef} className={editorWrapper} style={{ height }}>

@@ -15,7 +15,6 @@ import {
   pressShiftTab,
   pressTab,
   redoByKeyboard,
-  SHORT_KEY,
   type,
   undoByKeyboard,
 } from './utils/actions/keyboard.js';
@@ -113,11 +112,13 @@ function getAttachment(page: Page) {
       await attachment.click();
       await expect(toolbar).toBeVisible();
       await renameBtn.click();
-      await page.keyboard.press(`${SHORT_KEY}+a`, { delay: 50 });
-      await pressBackspace(page);
-      await type(page, newName);
+      await expect(renameInput).toBeVisible();
+      await renameInput.fill(newName);
       await pressEnter(page);
-      expect(await getName()).toContain(newName);
+      await expect(renameInput).not.toBeVisible();
+      if (newName.length > 0) {
+        await expect.poll(getName).toContain(newName);
+      }
     },
 
     // external
@@ -143,7 +144,7 @@ test('can insert attachment from slash menu', async ({ page }, testInfo) => {
   await waitLoading();
 
   expect(await getName()).toBe(FILE_NAME);
-  expect(await getSize()).toBe('45.8 kB');
+  expect(await getSize()).toBe('44.73KB');
 
   expect(await getPageSnapshot(page, true)).toMatchSnapshot(
     `${testInfo.title}.json`
@@ -215,11 +216,11 @@ test('should rename attachment works', async ({ page }) => {
   await expect(renameInput).not.toBeVisible();
 
   await rename('new-name');
-  expect(await getName()).toBe('new-name.png');
+  await expect.poll(getName).toBe('new-name.png');
   await rename('');
-  expect(await getName()).toBe('.png');
+  await expect.poll(getName).toBe('.png');
   await rename('abc');
-  expect(await getName()).toBe('abc');
+  await expect.poll(getName).toBe('abc');
 });
 
 test('should turn attachment to image works', async ({ page }, testInfo) => {
@@ -285,7 +286,7 @@ test(`support dragging attachment block directly`, async ({
   await waitLoading();
 
   expect(await getName()).toBe(FILE_NAME);
-  expect(await getSize()).toBe('45.8 kB');
+  expect(await getSize()).toBe('44.73KB');
 
   expect(await getPageSnapshot(page, true)).toMatchSnapshot(
     `${testInfo.title}_1.json`

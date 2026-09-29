@@ -1,4 +1,4 @@
-import { Input, Menu, PropertyValue } from '@affine/component';
+import { Input, PropertyValue } from '@affine/component';
 import type { FilterParams } from '@affine/core/modules/collection-rules';
 import { useI18n } from '@affine/i18n';
 import { TextIcon, TextTypeIcon } from '@blocksuite/icons/rc';
@@ -15,6 +15,7 @@ import {
 import { PlainTextDocGroupHeader } from '../explorer/docs-view/group-header';
 import { StackProperty } from '../explorer/docs-view/stack-property';
 import type { GroupHeaderProps } from '../explorer/types';
+import { FilterValueMenu } from '../filter/filter-value-menu';
 import { ConfigModal } from '../mobile';
 import type { PropertyValueProps } from '../properties/types';
 import * as styles from './text.css';
@@ -40,7 +41,7 @@ const DesktopTextValue = ({
   useEffect(() => {
     ref.current?.addEventListener('blur', handleBlur);
     return () => {
-      // eslint-disable-next-line react-hooks/exhaustive-deps
+      // oxlint-disable-next-line react/exhaustive-deps
       ref.current?.removeEventListener('blur', handleBlur);
     };
   }, [handleBlur]);
@@ -107,7 +108,7 @@ const MobileTextValue = ({
   useEffect(() => {
     ref.current?.addEventListener('blur', handleBlur);
     return () => {
-      // eslint-disable-next-line react-hooks/exhaustive-deps
+      // oxlint-disable-next-line react/exhaustive-deps
       ref.current?.removeEventListener('blur', handleBlur);
     };
   }, [handleBlur]);
@@ -177,10 +178,14 @@ export const TextValue = BUILD_CONFIG.isMobileWeb
 
 export const TextFilterValue = ({
   filter,
+  isDraft,
+  onDraftCompleted,
   onChange,
 }: {
   filter: FilterParams;
-  onChange: (filter: FilterParams) => void;
+  isDraft?: boolean;
+  onDraftCompleted?: () => void;
+  onChange?: (filter: FilterParams) => void;
 }) => {
   const [tempValue, setTempValue] = useState(filter.value || '');
   const [valueMenuOpen, setValueMenuOpen] = useState(false);
@@ -193,7 +198,7 @@ export const TextFilterValue = ({
 
   const submitTempValue = useCallback(() => {
     if (tempValue !== (filter.value || '')) {
-      onChange({
+      onChange?.({
         ...filter,
         value: tempValue,
       });
@@ -205,24 +210,36 @@ export const TextFilterValue = ({
       if (e.key !== 'Escape') return;
       submitTempValue();
       setValueMenuOpen(false);
+      onDraftCompleted?.();
     },
-    [submitTempValue]
+    [submitTempValue, onDraftCompleted]
   );
 
   const handleInputEnter = useCallback(() => {
     submitTempValue();
     setValueMenuOpen(false);
-  }, [submitTempValue]);
+    onDraftCompleted?.();
+  }, [submitTempValue, onDraftCompleted]);
+
+  useEffect(() => {
+    if (
+      isDraft &&
+      (filter.method === 'is-not-empty' || filter.method === 'is-empty')
+    ) {
+      onDraftCompleted?.();
+    }
+  }, [isDraft, filter.method, onDraftCompleted]);
 
   return filter.method !== 'is-not-empty' && filter.method !== 'is-empty' ? (
-    <Menu
+    <FilterValueMenu
+      isDraft={isDraft}
       rootOptions={{
         open: valueMenuOpen,
         onOpenChange: setValueMenuOpen,
+        onClose: onDraftCompleted,
       }}
       contentOptions={{
         onPointerDownOutside: submitTempValue,
-        sideOffset: -28,
       }}
       items={
         <Input
@@ -248,7 +265,7 @@ export const TextFilterValue = ({
           {t['com.affine.filter.empty']()}
         </span>
       )}
-    </Menu>
+    </FilterValueMenu>
   ) : null;
 };
 

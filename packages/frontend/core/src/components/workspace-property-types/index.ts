@@ -29,6 +29,16 @@ import {
   CheckboxValue,
 } from './checkbox';
 import {
+  CreateAtDocListProperty,
+  CreateAtValue,
+  CreatedAtFilterValue,
+  CreatedAtGroupHeader,
+  UpdatedAtDocListProperty,
+  UpdatedAtFilterValue,
+  UpdatedAtGroupHeader,
+  UpdatedAtValue,
+} from './created-updated-at';
+import {
   CreatedByDocListInlineProperty,
   CreatedByUpdatedByFilterValue,
   CreatedByValue,
@@ -37,15 +47,10 @@ import {
   UpdatedByValue,
 } from './created-updated-by';
 import {
-  CreateDateDocListProperty,
-  CreateDateValue,
-  CreatedGroupHeader,
   DateDocListProperty,
   DateFilterValue,
   DateGroupHeader,
   DateValue,
-  UpdatedDateDocListProperty,
-  UpdatedDateValue,
 } from './date';
 import {
   DocPrimaryModeDocListProperty,
@@ -55,6 +60,8 @@ import {
 } from './doc-primary-mode';
 import {
   EdgelessThemeDocListProperty,
+  EdgelessThemeFilterValue,
+  EdgelessThemeGroupHeader,
   EdgelessThemeValue,
 } from './edgeless-theme';
 import {
@@ -63,15 +70,30 @@ import {
   JournalGroupHeader,
   JournalValue,
 } from './journal';
-import { NumberDocListProperty, NumberValue } from './number';
-import { PageWidthDocListProperty, PageWidthValue } from './page-width';
+import {
+  NumberDocListProperty,
+  NumberFilterValue,
+  NumberGroupHeader,
+  NumberValue,
+} from './number';
+import {
+  PageWidthDocListProperty,
+  PageWidthFilterValue,
+  PageWidthGroupHeader,
+  PageWidthValue,
+} from './page-width';
 import {
   TagsDocListProperty,
   TagsFilterValue,
   TagsGroupHeader,
   TagsValue,
 } from './tags';
-import { TemplateDocListProperty, TemplateValue } from './template';
+import {
+  TemplateDocListProperty,
+  TemplateFilterValue,
+  TemplateGroupHeader,
+  TemplateValue,
+} from './template';
 import {
   TextDocListProperty,
   TextFilterValue,
@@ -79,7 +101,7 @@ import {
   TextValue,
 } from './text';
 
-const DateFilterMethod = {
+export const DateFilterMethod = {
   after: 'com.affine.filter.after',
   before: 'com.affine.filter.before',
   between: 'com.affine.filter.between',
@@ -141,8 +163,23 @@ export const WorkspacePropertyTypes = {
     value: NumberValue,
     name: 'com.affine.page-properties.property.number',
     description: 'com.affine.page-properties.property.number.tooltips',
+    filterMethod: {
+      '<': '<',
+      '=': '=',
+      '≠': '≠',
+      '≥': '≥',
+      '≤': '≤',
+      '>': '>',
+      'is-not-empty': 'com.affine.filter.is not empty',
+      'is-empty': 'com.affine.filter.is empty',
+    },
+    allowInGroupBy: true,
+    allowInOrderBy: true,
+    filterValue: NumberFilterValue,
+    defaultFilter: { method: 'is-not-empty' },
     showInDocList: 'stack',
     docListProperty: NumberDocListProperty,
+    groupHeader: NumberGroupHeader,
   },
   checkbox: {
     icon: CheckBoxCheckLinearIcon,
@@ -213,7 +250,7 @@ export const WorkspacePropertyTypes = {
   },
   updatedAt: {
     icon: DateTimeIcon,
-    value: UpdatedDateValue,
+    value: UpdatedAtValue,
     name: 'com.affine.page-properties.property.updatedAt',
     description: 'com.affine.page-properties.property.updatedAt.tooltips',
     renameable: false,
@@ -222,15 +259,15 @@ export const WorkspacePropertyTypes = {
     filterMethod: {
       ...DateFilterMethod,
     },
-    filterValue: DateFilterValue,
+    filterValue: UpdatedAtFilterValue,
     defaultFilter: { method: 'this-week' },
     showInDocList: 'inline',
-    docListProperty: UpdatedDateDocListProperty,
-    groupHeader: CreatedGroupHeader,
+    docListProperty: UpdatedAtDocListProperty,
+    groupHeader: UpdatedAtGroupHeader,
   },
   createdAt: {
     icon: HistoryIcon,
-    value: CreateDateValue,
+    value: CreateAtValue,
     name: 'com.affine.page-properties.property.createdAt',
     description: 'com.affine.page-properties.property.createdAt.tooltips',
     renameable: false,
@@ -239,11 +276,11 @@ export const WorkspacePropertyTypes = {
     filterMethod: {
       ...DateFilterMethod,
     },
-    filterValue: DateFilterValue,
+    filterValue: CreatedAtFilterValue,
     defaultFilter: { method: 'this-week' },
     showInDocList: 'inline',
-    docListProperty: CreateDateDocListProperty,
-    groupHeader: CreatedGroupHeader,
+    docListProperty: CreateAtDocListProperty,
+    groupHeader: CreatedAtGroupHeader,
   },
   docPrimaryMode: {
     icon: FileIcon,
@@ -285,7 +322,16 @@ export const WorkspacePropertyTypes = {
     name: 'com.affine.page-properties.property.edgelessTheme',
     description: 'com.affine.page-properties.property.edgelessTheme.tooltips',
     showInDocList: 'stack',
+    allowInGroupBy: true,
+    allowInOrderBy: true,
     docListProperty: EdgelessThemeDocListProperty,
+    groupHeader: EdgelessThemeGroupHeader,
+    filterMethod: {
+      is: 'com.affine.editCollection.rules.include.is',
+      'is-not': 'com.affine.editCollection.rules.include.is-not',
+    },
+    filterValue: EdgelessThemeFilterValue,
+    defaultFilter: { method: 'is', value: 'system' },
   },
   pageWidth: {
     icon: LongerIcon,
@@ -293,7 +339,16 @@ export const WorkspacePropertyTypes = {
     name: 'com.affine.page-properties.property.pageWidth',
     description: 'com.affine.page-properties.property.pageWidth.tooltips',
     showInDocList: 'stack',
+    allowInGroupBy: true,
+    allowInOrderBy: true,
     docListProperty: PageWidthDocListProperty,
+    groupHeader: PageWidthGroupHeader,
+    filterMethod: {
+      is: 'com.affine.editCollection.rules.include.is',
+      'is-not': 'com.affine.editCollection.rules.include.is-not',
+    },
+    filterValue: PageWidthFilterValue,
+    defaultFilter: { method: 'is', value: 'fullWidth' },
   },
   template: {
     icon: TemplateIcon,
@@ -302,7 +357,16 @@ export const WorkspacePropertyTypes = {
     renameable: true,
     description: 'com.affine.page-properties.property.template.tooltips',
     showInDocList: 'stack',
+    allowInGroupBy: true,
+    allowInOrderBy: true,
     docListProperty: TemplateDocListProperty,
+    groupHeader: TemplateGroupHeader,
+    filterMethod: {
+      is: 'com.affine.editCollection.rules.include.is',
+      'is-not': 'com.affine.editCollection.rules.include.is-not',
+    },
+    filterValue: TemplateFilterValue,
+    defaultFilter: { method: 'is', value: 'true' },
   },
   unknown: {
     icon: PropertyIcon,
@@ -319,7 +383,8 @@ export const WorkspacePropertyTypes = {
     filterMethod?: { [key in WorkspacePropertyFilter<type>]: I18nString };
     filterValue?: React.FC<{
       filter: FilterParams;
-      onChange: (filter: FilterParams) => void;
+      isDraft?: boolean;
+      onChange?: (filter: FilterParams) => void;
     }>;
     defaultFilter?: Omit<FilterParams, 'type' | 'key'>;
     /**

@@ -1,94 +1,99 @@
 import type { DocCustomPropertyInfo } from '@affine/core/modules/db';
 import { type DocRecord, DocsService } from '@affine/core/modules/doc';
-import {
-  WorkspacePropertyService,
-  type WorkspacePropertyType,
-} from '@affine/core/modules/workspace-property';
+import { WorkspacePropertyService } from '@affine/core/modules/workspace-property';
 import { useLiveData, useService } from '@toeverything/infra';
 import clsx from 'clsx';
 import { useContext, useMemo } from 'react';
 
-import type { WorkspacePropertyTypes } from '../../workspace-property-types';
+import { SystemPropertyTypes } from '../../system-property-types';
+import { WorkspacePropertyTypes } from '../../workspace-property-types';
 import { DocExplorerContext } from '../context';
-import { filterDisplayProperties } from '../display-menu/properties';
+import { generateExplorerPropertyList } from '../properties';
 import { listHide560, listHide750 } from './doc-list-item.css';
 import * as styles from './properties.css';
 
-const listInlinePropertyOrder: WorkspacePropertyType[] = [
+const listInlinePropertyOrder: string[] = [
   'createdAt',
   'updatedAt',
   'createdBy',
   'updatedBy',
 ];
-const cardInlinePropertyOrder: WorkspacePropertyType[] = [
+const cardInlinePropertyOrder: string[] = [
   'createdBy',
   'updatedBy',
   'createdAt',
   'updatedAt',
 ];
 
-const useProperties = (docId: string, view: 'list' | 'card') => {
-  const contextValue = useContext(DocExplorerContext);
-  const displayProperties = useLiveData(contextValue.displayProperties$);
-  const docsService = useService(DocsService);
+const useProperties = (view: 'list' | 'card') => {
   const workspacePropertyService = useService(WorkspacePropertyService);
 
-  const doc = useLiveData(docsService.list.doc$(docId));
-  const properties = useLiveData(doc?.properties$);
-  const propertyList = useLiveData(workspacePropertyService.properties$);
+  const propertyList = useLiveData(workspacePropertyService.sortedProperties$);
+
+  const explorerPropertyList = useMemo(() => {
+    return generateExplorerPropertyList(propertyList);
+  }, [propertyList]);
 
   const stackProperties = useMemo(
-    () => (properties ? filterDisplayProperties(propertyList, 'stack') : []),
-    [properties, propertyList]
+    () =>
+      explorerPropertyList
+        .filter(
+          property =>
+            (property.systemProperty &&
+              property.systemProperty.showInDocList === 'stack') ||
+            (property.workspaceProperty &&
+              WorkspacePropertyTypes[property.workspaceProperty.type]
+                .showInDocList === 'stack')
+        )
+        .filter(p => p.systemProperty?.type !== 'tags'),
+    [explorerPropertyList]
   );
+
   const inlineProperties = useMemo(
     () =>
-      properties
-        ? filterDisplayProperties(propertyList, 'inline')
-            .filter(p => p.property.type !== 'tags')
-            .sort((a, b) => {
-              const orderList =
-                view === 'list'
-                  ? listInlinePropertyOrder
-                  : cardInlinePropertyOrder;
-              const aIndex = orderList.indexOf(a.property.type);
-              const bIndex = orderList.indexOf(b.property.type);
-              // Push un-recognised types to the tail instead of the head
-              return (
-                (aIndex === -1 ? Number.MAX_SAFE_INTEGER : aIndex) -
-                (bIndex === -1 ? Number.MAX_SAFE_INTEGER : bIndex)
-              );
-            })
-        : [],
-    [properties, propertyList, view]
-  );
-  const tagsProperty = useMemo(() => {
-    return propertyList
-      ? filterDisplayProperties(propertyList, 'inline').find(
-          prop => prop.property.type === 'tags'
+      explorerPropertyList
+        .filter(
+          property =>
+            (property.systemProperty &&
+              property.systemProperty.showInDocList === 'inline') ||
+            (property.workspaceProperty &&
+              WorkspacePropertyTypes[property.workspaceProperty.type]
+                .showInDocList === 'inline')
         )
-      : undefined;
-  }, [propertyList]);
+        .filter(p => p.systemProperty?.type !== 'tags')
+        .sort((a, b) => {
+          const orderList =
+            view === 'list' ? listInlinePropertyOrder : cardInlinePropertyOrder;
+          const aIndex = orderList.indexOf(
+            a.systemProperty?.type ?? a.workspaceProperty?.type ?? ''
+          );
+          const bIndex = orderList.indexOf(
+            b.systemProperty?.type ?? b.workspaceProperty?.type ?? ''
+          );
+          // Push un-recognised types to the tail instead of the head
+          return (
+            (aIndex === -1 ? Number.MAX_SAFE_INTEGER : aIndex) -
+            (bIndex === -1 ? Number.MAX_SAFE_INTEGER : bIndex)
+          );
+        }),
+    [explorerPropertyList, view]
+  );
 
   return useMemo(
     () => ({
-      doc,
-      displayProperties,
       stackProperties,
       inlineProperties,
-      tagsProperty,
     }),
-    [doc, displayProperties, stackProperties, inlineProperties, tagsProperty]
+    [stackProperties, inlineProperties]
   );
 };
 export const ListViewProperties = ({ docId }: { docId: string }) => {
-  const {
-    doc,
-    displayProperties,
-    stackProperties,
-    inlineProperties,
-    tagsProperty,
-  } = useProperties(docId, 'list');
+  const contextValue = useContext(DocExplorerContext);
+  const displayProperties = useLiveData(contextValue?.displayProperties$);
+  const docsService = useService(DocsService);
+  const doc = useLiveData(docsService.list.doc$(docId));
+
+  const { stackProperties, inlineProperties } = useProperties('list');
 
   if (!doc) {
     return null;
@@ -99,57 +104,92 @@ export const ListViewProperties = ({ docId }: { docId: string }) => {
       {/* stack properties */}
       <div className={clsx(styles.stackContainer, listHide750)}>
         <div className={styles.stackProperties}>
-          {stackProperties.map(({ property, config }) => {
-            if (!displayProperties?.includes(property.id)) {
+          {stackProperties.map(({ systemProperty, workspaceProperty }) => {
+            const displayKey = systemProperty
+              ? `system:${systemProperty.type}`
+              : workspaceProperty
+                ? `property:${workspaceProperty.id}`
+                : null;
+            if (!displayKey || !displayProperties?.includes(displayKey)) {
               return null;
             }
-            return (
-              <PropertyRenderer
-                key={property.id}
-                doc={doc}
-                property={property}
-                config={config}
-              />
-            );
+            if (systemProperty && systemProperty.showInDocList) {
+              return (
+                <SystemPropertyRenderer
+                  doc={doc}
+                  config={SystemPropertyTypes[systemProperty.type]}
+                  key={systemProperty.type}
+                />
+              );
+            } else if (
+              workspaceProperty &&
+              WorkspacePropertyTypes[workspaceProperty.type]?.showInDocList
+            ) {
+              return (
+                <WorkspacePropertyRenderer
+                  key={workspaceProperty.id}
+                  doc={doc}
+                  property={workspaceProperty}
+                  config={WorkspacePropertyTypes[workspaceProperty.type]}
+                />
+              );
+            }
+            return null;
           })}
         </div>
-        {tagsProperty &&
-        displayProperties?.includes(tagsProperty.property.id) ? (
+        {displayProperties?.includes('system:tags') ? (
           <div className={styles.stackProperties}>
-            <PropertyRenderer
+            <SystemPropertyRenderer
               doc={doc}
-              property={tagsProperty.property}
-              config={tagsProperty.config}
+              config={SystemPropertyTypes.tags}
             />
           </div>
         ) : null}
       </div>
       {/* inline properties */}
-      {inlineProperties.map(({ property, config }) => {
-        if (!displayProperties?.includes(property.id)) {
+      {inlineProperties.map(({ systemProperty, workspaceProperty }) => {
+        const displayKeys = [
+          systemProperty ? `system:${systemProperty.type}` : null,
+          workspaceProperty ? `property:${workspaceProperty.id}` : null,
+        ];
+        if (!displayKeys.some(key => key && displayProperties?.includes(key))) {
           return null;
         }
-        return (
-          <div
-            key={property.id}
-            className={clsx(styles.inlineProperty, listHide560)}
-          >
-            <PropertyRenderer doc={doc} property={property} config={config} />
-          </div>
-        );
+        if (systemProperty) {
+          return (
+            <SystemPropertyRenderer
+              doc={doc}
+              config={SystemPropertyTypes[systemProperty.type]}
+              key={systemProperty.type}
+            />
+          );
+        } else if (workspaceProperty) {
+          return (
+            <div
+              key={workspaceProperty.id}
+              className={clsx(styles.inlineProperty, listHide560)}
+            >
+              <WorkspacePropertyRenderer
+                doc={doc}
+                property={workspaceProperty}
+                config={WorkspacePropertyTypes[workspaceProperty.type]}
+              />
+            </div>
+          );
+        }
+        return null;
       })}
     </>
   );
 };
 
 export const CardViewProperties = ({ docId }: { docId: string }) => {
-  const {
-    doc,
-    displayProperties,
-    stackProperties,
-    inlineProperties,
-    tagsProperty,
-  } = useProperties(docId, 'card');
+  const contextValue = useContext(DocExplorerContext);
+  const displayProperties = useLiveData(contextValue?.displayProperties$);
+  const docsService = useService(DocsService);
+  const doc = useLiveData(docsService.list.doc$(docId));
+
+  const { stackProperties, inlineProperties } = useProperties('card');
 
   if (!doc) {
     return null;
@@ -157,41 +197,87 @@ export const CardViewProperties = ({ docId }: { docId: string }) => {
 
   return (
     <div className={styles.cardProperties}>
-      {inlineProperties.map(({ property, config }) => {
-        if (!displayProperties?.includes(property.id)) {
+      {/* inline properties */}
+      {inlineProperties.map(({ systemProperty, workspaceProperty }) => {
+        const displayKeys = [
+          systemProperty ? `system:${systemProperty.type}` : null,
+          workspaceProperty ? `property:${workspaceProperty.id}` : null,
+        ];
+        if (!displayKeys.some(key => key && displayProperties?.includes(key))) {
           return null;
         }
-        return (
-          <div key={property.id} className={styles.inlineProperty}>
-            <PropertyRenderer doc={doc} property={property} config={config} />
-          </div>
-        );
+        if (systemProperty) {
+          return (
+            <SystemPropertyRenderer
+              doc={doc}
+              config={SystemPropertyTypes[systemProperty.type]}
+              key={systemProperty.type}
+            />
+          );
+        } else if (workspaceProperty) {
+          return (
+            <div key={workspaceProperty.id} className={styles.inlineProperty}>
+              <WorkspacePropertyRenderer
+                doc={doc}
+                property={workspaceProperty}
+                config={WorkspacePropertyTypes[workspaceProperty.type]}
+              />
+            </div>
+          );
+        }
+        return null;
       })}
-      {tagsProperty && displayProperties?.includes(tagsProperty.property.id) ? (
-        <PropertyRenderer
-          doc={doc}
-          property={tagsProperty.property}
-          config={tagsProperty.config}
-        />
+      {/* stack properties */}
+      {stackProperties.map(({ systemProperty, workspaceProperty }) => {
+        const displayKeys = [
+          systemProperty ? `system:${systemProperty.type}` : null,
+          workspaceProperty ? `property:${workspaceProperty.id}` : null,
+        ];
+        if (!displayKeys.some(key => key && displayProperties?.includes(key))) {
+          return null;
+        }
+        if (systemProperty) {
+          return (
+            <SystemPropertyRenderer
+              doc={doc}
+              config={SystemPropertyTypes[systemProperty.type]}
+              key={systemProperty.type}
+            />
+          );
+        } else if (workspaceProperty) {
+          return (
+            <WorkspacePropertyRenderer
+              key={workspaceProperty.id}
+              doc={doc}
+              property={workspaceProperty}
+              config={WorkspacePropertyTypes[workspaceProperty.type]}
+            />
+          );
+        }
+        return null;
+      })}
+      {displayProperties?.includes('system:tags') ? (
+        <SystemPropertyRenderer doc={doc} config={SystemPropertyTypes.tags} />
       ) : null}
-      {stackProperties.map(({ property, config }) => {
-        if (!displayProperties?.includes(property.id)) {
-          return null;
-        }
-        return (
-          <PropertyRenderer
-            key={property.id}
-            doc={doc}
-            property={property}
-            config={config}
-          />
-        );
-      })}
     </div>
   );
 };
 
-const PropertyRenderer = ({
+const SystemPropertyRenderer = ({
+  doc,
+  config,
+}: {
+  doc: DocRecord;
+  config: (typeof SystemPropertyTypes)[string];
+}) => {
+  if (!config.docListProperty) {
+    return null;
+  }
+
+  return <config.docListProperty doc={doc} />;
+};
+
+const WorkspacePropertyRenderer = ({
   property,
   doc,
   config,
