@@ -4,7 +4,11 @@ import { ConnectorTool } from '@blocksuite/affine/gfx/connector';
 import { ShapeTool } from '@blocksuite/affine/gfx/shape';
 import type { IPoint, IVec } from '@blocksuite/affine/global/gfx';
 import { sleep } from '@blocksuite/affine/global/utils';
-import type { NoteBlockModel, NoteDisplayMode } from '@blocksuite/affine/model';
+import type {
+  ConnectorElementModel,
+  NoteBlockModel,
+  NoteDisplayMode,
+} from '@blocksuite/affine/model';
 import type { ToolOptions } from '@blocksuite/affine/std/gfx';
 import type { Locator, Page } from '@playwright/test';
 import { expect } from '@playwright/test';
@@ -372,12 +376,18 @@ export async function setEdgelessTool(
         'shape',
         false
       );
-      // Avoid clicking on the shape-element (will trigger dragging mode)
-      await shapeToolButton.click({ position: { x: 5, y: 5 } });
+      await shapeToolButton.click({ position: { x: 2, y: 2 } });
 
-      const squareShapeButton = page
-        .locator('edgeless-slide-menu edgeless-tool-icon-button')
+      const shapeMenu = page.locator('edgeless-shape-menu');
+      if ((await shapeMenu.count()) === 0 && shape === Shape.Square) {
+        break;
+      }
+      await expect(shapeMenu).toBeVisible();
+
+      const squareShapeButton = shapeMenu
+        .locator('edgeless-tool-icon-button')
         .filter({ hasText: shape });
+      await expect(squareShapeButton).toBeVisible();
       await squareShapeButton.click();
       break;
     }
@@ -416,6 +426,23 @@ export async function assertEdgelessTool(page: Page, mode: string) {
     return container.gfx.tool.currentTool$.peek()?.toolName;
   });
   expect(type).toEqual(mode);
+}
+
+export async function getConnectorLabel(page: Page, id: string) {
+  const text = await page.evaluate(id => {
+    const container = document.querySelector('affine-edgeless-root');
+    if (!container) {
+      throw new Error('Missing edgeless page');
+    }
+    const connector = container.gfx.getElementById(id) as ConnectorElementModel;
+    if (!connector) {
+      throw new Error('Missing connector');
+    }
+
+    return connector.text?.toString() ?? '';
+  }, id);
+
+  return text;
 }
 
 export async function assertEdgelessConnectorToolMode(
@@ -524,6 +551,7 @@ export async function addBasicConnectorElement(
 ) {
   await setEdgelessTool(page, 'connector');
   await dragBetweenCoords(page, start, end, { steps: 100 });
+  return (await getSelectedIds(page))[0];
 }
 
 export async function addBasicFrameElement(
@@ -798,10 +826,10 @@ export async function updateExistedBrushElementSize(
   page: Page,
   nthSizeButton: 1 | 2 | 3 | 4 | 5 | 6
 ) {
-  // get the nth brush size button
-  const btn = page.locator(
-    `edgeless-line-width-panel .point-button:nth-child(${nthSizeButton})`
-  );
+  // pick from the visible panel to avoid strict-mode collisions from hidden/duplicate toolbars
+  const btn = page
+    .locator('edgeless-line-width-panel:visible .point-button')
+    .nth(nthSizeButton - 1);
 
   await btn.click();
 }
@@ -1864,6 +1892,7 @@ export async function createConnectorElement(
     { x: start[0], y: start[1] },
     { x: end[0], y: end[1] }
   );
+  return (await getSelectedIds(page))[0];
 }
 
 export async function createFrameElement(

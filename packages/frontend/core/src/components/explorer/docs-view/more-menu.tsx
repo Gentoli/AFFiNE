@@ -9,6 +9,7 @@ import {
 import { WorkspaceDialogService } from '@affine/core/modules/dialogs';
 import { DocsService } from '@affine/core/modules/doc';
 import { CompatibleFavoriteItemsAdapter } from '@affine/core/modules/favorite';
+import { GuardService } from '@affine/core/modules/permissions';
 import { WorkbenchService } from '@affine/core/modules/workbench';
 import { useI18n } from '@affine/i18n';
 import track from '@affine/track';
@@ -21,10 +22,11 @@ import {
   SplitViewIcon,
 } from '@blocksuite/icons/rc';
 import { useLiveData, useService } from '@toeverything/infra';
-import { useCallback } from 'react';
+import { useCallback, useContext } from 'react';
 
 import { useBlockSuiteMetaHelper } from '../../hooks/affine/use-block-suite-meta-helper';
 import { IsFavoriteIcon } from '../../pure/icons';
+import { DocExplorerContext } from '../context';
 
 interface DocOperationProps {
   docId: string;
@@ -40,12 +42,14 @@ const ToggleFavorite = ({ docId }: DocOperationProps) => {
 
   const toggleFavorite = useCallback(() => {
     favAdapter.toggle(docId, 'doc');
+    track.allDocs.list.docMenu.toggleFavorite();
   }, [docId, favAdapter]);
 
   return (
     <MenuItem
       prefixIcon={<IsFavoriteIcon favorite={favourite} />}
       onClick={toggleFavorite}
+      data-testid="doc-list-operation-favorite"
     >
       {favourite
         ? t['com.affine.favoritePageOperation.remove']()
@@ -63,7 +67,7 @@ const DocInfo = ({ docId }: DocOperationProps) => {
 
   const onOpenInfoModal = useCallback(() => {
     if (docId) {
-      track.$.docInfoPanel.$.open();
+      track.allDocs.list.docMenu.openDocInfo();
       workspaceDialogService.open('doc-info', { docId });
     }
   }, [docId, workspaceDialogService]);
@@ -82,6 +86,8 @@ const NewTab = ({ docId }: DocOperationProps) => {
   const t = useI18n();
   const workbench = useService(WorkbenchService).workbench;
   const onOpenInNewTab = useCallback(() => {
+    track.allDocs.list.doc.openDoc();
+    track.allDocs.list.docMenu.openInNewTab();
     workbench.openDoc(docId, { at: 'new-tab' });
   }, [docId, workbench]);
 
@@ -100,13 +106,14 @@ const SplitView = ({ docId }: DocOperationProps) => {
   const workbench = useService(WorkbenchService).workbench;
 
   const onOpenInSplitView = useCallback(() => {
+    track.allDocs.list.doc.openDoc();
     track.allDocs.list.docMenu.openInSplitView();
     workbench.openDoc(docId, { at: 'tail' });
   }, [docId, workbench]);
 
   return (
     <MenuItem onClick={onOpenInSplitView} prefixIcon={<SplitViewIcon />}>
-      {t['com.affine.workbench.tab.page-menu-open']()}
+      {t['com.affine.workbench.split-view.page-menu-open']()}
     </MenuItem>
   );
 };
@@ -140,6 +147,9 @@ const MoveToTrash = ({ docId }: DocOperationProps) => {
   const docsService = useService(DocsService);
   const { openConfirmModal } = useConfirmModal();
   const doc = useLiveData(docsService.list.doc$(docId));
+  const guardService = useService(GuardService);
+
+  const canTrash = useLiveData(guardService.can$('Doc_Trash', docId));
 
   const onMoveToTrash = useCallback(() => {
     if (!doc) {
@@ -157,14 +167,19 @@ const MoveToTrash = ({ docId }: DocOperationProps) => {
       confirmButtonOptions: {
         variant: 'error',
       },
-      onConfirm: () => {
-        doc.moveToTrash();
+      onConfirm: async () => {
+        await doc.moveToTrash();
       },
     });
   }, [doc, openConfirmModal, t]);
 
   return (
-    <MenuItem prefixIcon={<DeleteIcon />} onClick={onMoveToTrash}>
+    <MenuItem
+      prefixIcon={<DeleteIcon />}
+      data-testid="doc-list-operation-trash"
+      onClick={onMoveToTrash}
+      disabled={!canTrash}
+    >
       {t['com.affine.moveToTrash.title']()}
     </MenuItem>
   );
@@ -186,10 +201,22 @@ export const MoreMenuContent = (props: DocOperationProps) => {
 export const MoreMenu = ({
   docId,
   children,
+  contentOptions,
   ...menuProps
 }: Omit<MenuProps, 'items'> & { docId: string }) => {
   return (
-    <Menu items={<MoreMenuContent docId={docId} />} {...menuProps}>
+    <Menu
+      items={<MoreMenuContent docId={docId} />}
+      contentOptions={{
+        ...contentOptions,
+        onClick: e => {
+          // prevent external click events from being triggered
+          e.stopPropagation();
+          contentOptions?.onClick?.(e);
+        },
+      }}
+      {...menuProps}
+    >
       {children}
     </Menu>
   );
@@ -203,9 +230,20 @@ export const MoreMenuButton = ({
   docId: string;
   iconProps?: IconButtonProps;
 }) => {
+  const contextValue = useContext(DocExplorerContext);
+  const showMoreOperation = useLiveData(contextValue.showMoreOperation$);
+
+  if (!showMoreOperation) {
+    return null;
+  }
+
   return (
     <MoreMenu docId={docId} {...menuProps}>
-      <IconButton icon={<MoreVerticalIcon />} {...iconProps} />
+      <IconButton
+        data-testid="doc-list-operation-button"
+        icon={<MoreVerticalIcon />}
+        {...iconProps}
+      />
     </MoreMenu>
   );
 };

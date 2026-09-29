@@ -1,4 +1,4 @@
-import { getStoreManager } from '@affine/core/blocksuite/manager/migrating-store';
+import { getStoreManager } from '@affine/core/blocksuite/manager/store';
 import {
   AwarenessStore,
   type Doc,
@@ -117,6 +117,9 @@ export class DocImpl implements Doc {
   }
 
   private _destroy() {
+    if (this._loaded) {
+      this.workspace.onUnloadDoc?.(this._ySpaceDoc);
+    }
     this.awarenessStore.destroy();
     this._ySpaceDoc.destroy();
     this._loaded = false;

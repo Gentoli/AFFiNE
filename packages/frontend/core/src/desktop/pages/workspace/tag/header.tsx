@@ -1,12 +1,26 @@
+import { ExplorerDisplayMenuButton } from '@affine/core/components/explorer/display-menu';
 import { ExplorerNavigation } from '@affine/core/components/explorer/header/navigation';
-import { PageDisplayMenu } from '@affine/core/components/page-list';
+import type { ExplorerDisplayPreference } from '@affine/core/components/explorer/types';
 import { Header } from '@affine/core/components/pure/header';
 
-export const TagDetailHeader = () => {
+export const TagDetailHeader = ({
+  displayPreference,
+  onDisplayPreferenceChange,
+}: {
+  displayPreference: ExplorerDisplayPreference;
+  onDisplayPreferenceChange: (
+    displayPreference: ExplorerDisplayPreference
+  ) => void;
+}) => {
   return (
     <Header
       left={<ExplorerNavigation active={'tags'} />}
-      right={<PageDisplayMenu />}
+      right={
+        <ExplorerDisplayMenuButton
+          displayPreference={displayPreference}
+          onDisplayPreferenceChange={onDisplayPreferenceChange}
+        />
+      }
     />
   );
 };

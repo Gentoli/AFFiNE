@@ -38,14 +38,61 @@ function prepare() {
   }
 }
 
-function runPredeployScript() {
-  console.log('running predeploy script.');
-  execSync('yarn predeploy', {
+function runPrismaMigrations() {
+  console.log('running prisma migrations.');
+  execSync('yarn prisma migrate deploy', {
     encoding: 'utf-8',
     env: process.env,
     stdio: 'inherit',
   });
 }
 
+function runDataMigrations() {
+  console.log('running data migrations.');
+  execSync('yarn cli run', {
+    encoding: 'utf-8',
+    env: process.env,
+    stdio: 'inherit',
+  });
+}
+
+function fixFailedMigrations() {
+  console.log('fixing failed migrations.');
+  const maybeFailedMigrations = [
+    '20250521083048_fix_workspace_embedding_chunk_primary_key',
+  ];
+  for (const migration of maybeFailedMigrations) {
+    try {
+      execSync(`yarn prisma migrate resolve --rolled-back ${migration}`, {
+        encoding: 'utf-8',
+        env: process.env,
+        stdio: 'pipe',
+      });
+      console.log(`migration [${migration}] has been rolled back.`);
+    } catch (err) {
+      if (
+        err.message.includes(
+          'cannot be rolled back because it is not in a failed state'
+        ) ||
+        err.message.includes(
+          'cannot be rolled back because it was never applied'
+        ) ||
+        err.message.includes(
+          'called markMigrationRolledBack on a database without migrations table'
+        )
+      ) {
+        // migration has been rolled back, skip it
+        continue;
+      }
+      // ignore other errors
+      console.log(
+        `migration [${migration}] rolled back failed. ${err.message}`
+      );
+    }
+  }
+}
+
 prepare();
-runPredeployScript();
+fixFailedMigrations();
+runPrismaMigrations();
+runDataMigrations();

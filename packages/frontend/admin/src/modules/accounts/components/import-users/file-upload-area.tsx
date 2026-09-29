@@ -85,8 +85,10 @@ export const FileUploadArea = forwardRef<
 
   return (
     <div
-      className={`flex justify-center p-8 border-2 border-dashed rounded-md ${
-        isDragging ? 'border-blue-500 bg-blue-50' : 'border-gray-300'
+      className={`flex justify-center rounded-[6px] border-2 border-dashed p-8 transition-colors ${
+        isDragging
+          ? 'border-ring bg-accent/40'
+          : 'border-border hover:border-ring/50'
       }`}
       onDragOver={handleDragOver}
       onDragEnter={handleDragOver}
@@ -95,14 +97,17 @@ export const FileUploadArea = forwardRef<
       onClick={triggerFileInput}
     >
       <div className="text-center">
-        <UploadIcon fontSize={36} className="mx-auto mb-2 text-gray-400" />
-        <div className="text-sm font-medium">
+        <UploadIcon
+          fontSize={24}
+          className="mx-auto mb-3 text-muted-foreground"
+        />
+        <div className="text-xs font-medium text-muted-foreground">
           {isDragging
             ? 'Release mouse to upload file'
-            : 'Click to upload CSV file'}
+            : 'Upload your CSV file or drag it here'}
         </div>
-        <p className="mt-1 text-xs text-gray-500">
-          {isDragging ? 'Preparing to upload...' : 'Or drag and drop file here'}
+        <p className="mt-1 text-xs text-muted-foreground">
+          {isDragging ? 'Preparing to upload...' : ''}
         </p>
       </div>
       <input

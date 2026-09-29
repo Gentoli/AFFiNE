@@ -12,14 +12,13 @@ import zod from 'zod';
 export const createdByColumnType = propertyType('created-by');
 export const createdByPropertyModelConfig = createdByColumnType.modelConfig({
   name: 'Created By',
+  kanbanGroup: {
+    enabled: true,
+    mutable: false,
+  },
   propertyData: {
     schema: zod.object({}),
     default: () => ({}),
-  },
-  fixed: {
-    defaultData: {},
-    defaultOrder: 'end',
-    defaultShow: false,
   },
   rawValue: {
     schema: zod.string().nullable(),
@@ -29,7 +28,7 @@ export const createdByPropertyModelConfig = createdByColumnType.modelConfig({
       return { value: null };
     },
     toJson: ({ value }) => value,
-    fromJson: ({ value }) => value,
+    setValue: () => {},
   },
   jsonValue: {
     schema: zod.string().nullable(),

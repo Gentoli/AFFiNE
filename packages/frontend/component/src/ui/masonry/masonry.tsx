@@ -2,10 +2,12 @@ import clsx from 'clsx';
 import { debounce } from 'lodash-es';
 import throttle from 'lodash-es/throttle';
 import {
+  forwardRef,
   Fragment,
   memo,
   useCallback,
   useEffect,
+  useImperativeHandle,
   useMemo,
   useRef,
   useState,
@@ -61,29 +63,39 @@ export interface MasonryProps extends React.HTMLAttributes<HTMLDivElement> {
   columns?: number;
   resizeDebounce?: number;
   preloadHeight?: number;
+
+  onStickyGroupChange?: (groupId?: string) => void;
 }
 
-export const Masonry = ({
-  items,
-  gapX = 12,
-  gapY = 12,
-  itemWidth = 'stretch',
-  itemWidthMin = 100,
-  paddingX = 0,
-  paddingY = 0,
-  className,
-  virtualScroll = false,
-  locateMode = 'leftTop',
-  groupsGap = 0,
-  groupHeaderGapWithItems = 0,
-  stickyGroupHeader = true,
-  collapsedGroups,
-  columns,
-  preloadHeight = 50,
-  resizeDebounce = 20,
-  onGroupCollapse,
-  ...props
-}: MasonryProps) => {
+export type MasonryRef = {
+  scrollToGroup: (groupId: string) => void;
+};
+
+export const Masonry = forwardRef<MasonryRef, MasonryProps>(function Masonry(
+  {
+    items,
+    gapX = 12,
+    gapY = 12,
+    itemWidth = 'stretch',
+    itemWidthMin = 100,
+    paddingX = 0,
+    paddingY = 0,
+    className,
+    virtualScroll = false,
+    locateMode = 'leftTop',
+    groupsGap = 0,
+    groupHeaderGapWithItems = 0,
+    stickyGroupHeader = true,
+    collapsedGroups,
+    columns,
+    preloadHeight = 50,
+    resizeDebounce = 20,
+    onGroupCollapse,
+    onStickyGroupChange,
+    ...props
+  },
+  ref
+) {
   const rootRef = useRef<HTMLDivElement>(null);
   const [height, setHeight] = useState(0);
   const [layoutMap, setLayoutMap] = useState<
@@ -212,7 +224,9 @@ export const Masonry = ({
         const scrollY = (e.target as HTMLElement).scrollTop;
         updateActiveMap(layoutMap, scrollY);
         if (stickyGroupHeader) {
-          setStickyGroupId(calcSticky({ scrollY, layoutMap }));
+          const stickyGroupId = calcSticky({ scrollY, layoutMap });
+          setStickyGroupId(stickyGroupId);
+          onStickyGroupChange?.(stickyGroupId);
         }
       }, 50);
       rootEl.addEventListener('scroll', handler);
@@ -221,7 +235,29 @@ export const Masonry = ({
       };
     }
     return;
-  }, [layoutMap, stickyGroupHeader, updateActiveMap, virtualScroll]);
+  }, [
+    layoutMap,
+    onStickyGroupChange,
+    stickyGroupHeader,
+    updateActiveMap,
+    virtualScroll,
+  ]);
+
+  const scrollToGroup = useCallback(
+    (groupId: string) => {
+      const group = layoutMap.get(groupId);
+      if (!group) return;
+      rootRef.current?.scrollTo({
+        top: group.y,
+        behavior: 'instant',
+      });
+    },
+    [layoutMap]
+  );
+
+  useImperativeHandle<MasonryRef, MasonryRef>(ref, () => {
+    return { scrollToGroup };
+  });
 
   return (
     <Scrollable.Root>
@@ -286,7 +322,6 @@ export const Masonry = ({
         })}
         <div data-masonry-placeholder style={{ height }} />
       </Scrollable.Viewport>
-      <Scrollable.Scrollbar />
       {stickyGroup ? (
         <div
           className={clsx(styles.stickyGroupHeader, stickyGroup.className)}
@@ -310,16 +345,16 @@ export const Masonry = ({
           )}
         </div>
       ) : null}
+      <Scrollable.Scrollbar className={styles.scrollbar} />
     </Scrollable.Root>
   );
-};
+});
 
-interface MasonryItemProps
-  extends MasonryItem,
-    Omit<React.HTMLAttributes<HTMLDivElement>, 'id' | 'height'> {
-  locateMode?: 'transform' | 'leftTop' | 'transform3d';
-  xywh?: MasonryItemXYWH;
-}
+type MasonryItemProps = MasonryItem &
+  Omit<React.HTMLAttributes<HTMLDivElement>, 'id' | 'height'> & {
+    locateMode?: 'transform' | 'leftTop' | 'transform3d';
+    xywh?: MasonryItemXYWH;
+  };
 
 const MasonryGroupHeader = memo(function MasonryGroupHeader({
   id,
@@ -330,7 +365,6 @@ const MasonryGroupHeader = memo(function MasonryGroupHeader({
   groupId,
   itemCount,
   collapsed,
-  height,
   paddingX,
   ...props
 }: Omit<MasonryItemProps, 'Component'> & {
@@ -356,7 +390,6 @@ const MasonryGroupHeader = memo(function MasonryGroupHeader({
   return (
     <MasonryItem
       id={id}
-      height={height}
       style={{
         padding: `0 ${paddingX}px`,
         height: '100%',
@@ -404,7 +437,7 @@ const MasonryItem = memo(function MasonryItem({
   className,
   style: styleProp,
   ...props
-}: MasonryItemProps) {
+}: Omit<MasonryItemProps, 'height' | 'ratio'>) {
   const style = useMemo(() => {
     if (!xywh) return { display: 'none' };
 

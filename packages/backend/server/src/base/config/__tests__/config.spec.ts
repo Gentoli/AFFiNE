@@ -1,8 +1,9 @@
 import test from 'ava';
 
 import { createModule } from '../../../__tests__/create-module';
-import { ConfigFactory, ConfigModule } from '..';
+import { InvalidAppConfig } from '../../error';
 import { Config } from '../config';
+import { ConfigFactory, ConfigModule } from '../index';
 import { override } from '../register';
 
 const module = await createModule();
@@ -14,7 +15,12 @@ test('should create config', t => {
   const config = module.get(Config);
 
   t.is(typeof config.auth.passwordRequirements.max, 'number');
-  t.is(typeof config.job.queue, 'object');
+  t.deepEqual(config.copilot.byok.allowedProviders, [
+    'openai',
+    'anthropic',
+    'gemini',
+    'fal',
+  ]);
 });
 
 test('should override config', async t => {
@@ -25,13 +31,6 @@ test('should override config', async t => {
           passwordRequirements: {
             max: 100,
             min: 6,
-          },
-        },
-        job: {
-          queues: {
-            notification: {
-              concurrency: 1000,
-            },
           },
         },
       }),
@@ -64,31 +63,40 @@ test('should override config', async t => {
 test('should validate config', t => {
   const config = module.get(ConfigFactory);
 
-  t.notThrows(() =>
+  t.is(
     config.validate([
       {
         module: 'auth',
         key: 'passwordRequirements',
         value: { max: 10, min: 6 },
       },
-    ])
+    ]),
+    null
   );
 
-  t.throws(
-    () =>
-      config.validate([
-        {
-          module: 'auth',
-          key: 'passwordRequirements',
-          value: { max: 10, min: 10 },
-        },
-      ]),
+  const [error] = config.validate([
     {
-      message: `Invalid config for module [auth] with key [passwordRequirements]
-Value: {"max":10,"min":10}
-Error: Minimum length of password must be less than maximum length`,
-    }
+      module: 'auth',
+      key: 'passwordRequirements',
+      value: { max: 10, min: 10 },
+    },
+  ])!;
+
+  t.true(error instanceof InvalidAppConfig);
+  t.is(
+    error.message,
+    'Invalid app config for module `auth` with key `passwordRequirements`. Minimum length of password must be less than maximum length.'
   );
+
+  const [nativeError] = config.validate([
+    {
+      module: 'copilot',
+      key: 'byok.allowedProviders',
+      value: ['openai', 'openai'],
+    },
+  ])!;
+  t.true(nativeError instanceof InvalidAppConfig);
+  t.regex(nativeError.message, /supported and unique/);
 });
 
 test('should override correctly', t => {
@@ -141,7 +149,7 @@ test('should override correctly', t => {
           config: {
             credentials: {
               accessKeyId: '1',
-              accessKeySecret: '1',
+              secretAccessKey: '1',
             },
           },
         },
@@ -169,7 +177,7 @@ test('should override correctly', t => {
     config: {
       credentials: {
         accessKeyId: '1',
-        accessKeySecret: '1',
+        secretAccessKey: '1',
       },
     },
   });

@@ -25,7 +25,6 @@ export const body = style({
   display: 'flex',
   flexDirection: 'column',
   flex: 1,
-  height: '100%',
   width: '100%',
   containerName: 'docs-body',
   containerType: 'size',
@@ -34,23 +33,17 @@ export const body = style({
 export const scrollArea = style({
   height: 0,
   flex: 1,
+  paddingTop: '12px',
 });
 
 // group
-export const groupHeader = style({
-  background: cssVarV2.layer.background.primary,
-});
 
-export const docItem = style({
-  transition: 'width 0.2s ease-in-out',
-});
-
-export const filterArea = style({
+export const pinnedCollection = style({
   display: 'flex',
   flexDirection: 'column',
   gap: 8,
   padding: '0 24px',
-  paddingTop: '24px',
+  paddingTop: '12px',
   '@container': {
     'docs-body (width <= 500px)': {
       padding: '0 20px',
@@ -59,4 +52,30 @@ export const filterArea = style({
       padding: '0 16px',
     },
   },
+});
+
+export const filterArea = style({
+  padding: '0 24px',
+  paddingTop: '12px',
+  '@container': {
+    'docs-body (width <= 500px)': {
+      padding: '0 20px',
+    },
+    'docs-body (width <= 393px)': {
+      padding: '0 16px',
+    },
+  },
+});
+
+export const filterInnerArea = style({
+  display: 'flex',
+  flexDirection: 'row',
+  gap: 8,
+  padding: '8px',
+  background: cssVarV2('layer/background/secondary'),
+  borderRadius: '12px',
+});
+
+export const filters = style({
+  flex: 1,
 });

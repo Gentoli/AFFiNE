@@ -2,17 +2,26 @@ import {
   Checkbox,
   IconButton,
   type IconButtonProps,
+  toast,
   useConfirmModal,
 } from '@affine/component';
 import type { DocRecord } from '@affine/core/modules/doc';
 import { CompatibleFavoriteItemsAdapter } from '@affine/core/modules/favorite';
+import { GuardService } from '@affine/core/modules/permissions';
 import { WorkbenchService } from '@affine/core/modules/workbench';
+import { UserFriendlyError } from '@affine/error';
 import { useI18n } from '@affine/i18n';
 import track from '@affine/track';
-import { DeleteIcon, OpenInNewIcon, SplitViewIcon } from '@blocksuite/icons/rc';
+import {
+  DeleteIcon,
+  OpenInNewIcon,
+  ResetIcon,
+  SplitViewIcon,
+} from '@blocksuite/icons/rc';
 import { useLiveData, useService } from '@toeverything/infra';
 import { memo, useCallback, useContext } from 'react';
 
+import { useBlockSuiteMetaHelper } from '../../hooks/affine/use-block-suite-meta-helper';
 import { IsFavoriteIcon } from '../../pure/icons';
 import { DocExplorerContext } from '../context';
 
@@ -22,6 +31,7 @@ export interface QuickActionProps extends IconButtonProps {
 
 export const QuickFavorite = memo(function QuickFavorite({
   doc,
+  onClick,
   ...iconButtonProps
 }: QuickActionProps) {
   const contextValue = useContext(DocExplorerContext);
@@ -31,12 +41,14 @@ export const QuickFavorite = memo(function QuickFavorite({
   const favourite = useLiveData(favAdapter.isFavorite$(doc.id, 'doc'));
 
   const toggleFavorite = useCallback(
-    (e: React.MouseEvent) => {
+    (e: React.MouseEvent<HTMLButtonElement>) => {
+      onClick?.(e);
       e.stopPropagation();
       e.preventDefault();
+      track.allDocs.list.docMenu.toggleFavorite();
       favAdapter.toggle(doc.id, 'doc');
     },
-    [doc.id, favAdapter]
+    [doc.id, favAdapter, onClick]
   );
 
   if (!quickFavorite) {
@@ -47,6 +59,7 @@ export const QuickFavorite = memo(function QuickFavorite({
     <IconButton
       icon={<IsFavoriteIcon favorite={favourite} />}
       onClick={toggleFavorite}
+      data-testid="doc-list-operation-favorite"
       {...iconButtonProps}
     />
   );
@@ -54,18 +67,22 @@ export const QuickFavorite = memo(function QuickFavorite({
 
 export const QuickTab = memo(function QuickTab({
   doc,
+  onClick,
   ...iconButtonProps
 }: QuickActionProps) {
   const contextValue = useContext(DocExplorerContext);
   const quickTab = useLiveData(contextValue.quickTab$);
   const workbench = useService(WorkbenchService).workbench;
   const onOpenInNewTab = useCallback(
-    (e: React.MouseEvent) => {
+    (e: React.MouseEvent<HTMLButtonElement>) => {
+      onClick?.(e);
       e.stopPropagation();
       e.preventDefault();
+      track.allDocs.list.doc.openDoc();
+      track.allDocs.list.docMenu.openInNewTab();
       workbench.openDoc(doc.id, { at: 'new-tab' });
     },
-    [doc.id, workbench]
+    [doc.id, onClick, workbench]
   );
 
   if (!quickTab) {
@@ -83,6 +100,7 @@ export const QuickTab = memo(function QuickTab({
 
 export const QuickSplit = memo(function QuickSplit({
   doc,
+  onClick,
   ...iconButtonProps
 }: QuickActionProps) {
   const contextValue = useContext(DocExplorerContext);
@@ -90,13 +108,15 @@ export const QuickSplit = memo(function QuickSplit({
   const workbench = useService(WorkbenchService).workbench;
 
   const onOpenInSplitView = useCallback(
-    (e: React.MouseEvent) => {
+    (e: React.MouseEvent<HTMLButtonElement>) => {
+      onClick?.(e);
       e.stopPropagation();
       e.preventDefault();
+      track.allDocs.list.doc.openDoc();
       track.allDocs.list.docMenu.openInSplitView();
       workbench.openDoc(doc.id, { at: 'tail' });
     },
-    [doc.id, workbench]
+    [doc.id, onClick, workbench]
   );
 
   if (!quickSplit) {
@@ -114,15 +134,18 @@ export const QuickSplit = memo(function QuickSplit({
 
 export const QuickDelete = memo(function QuickDelete({
   doc,
+  onClick,
   ...iconButtonProps
 }: QuickActionProps) {
   const t = useI18n();
   const { openConfirmModal } = useConfirmModal();
   const contextValue = useContext(DocExplorerContext);
+  const guardService = useService(GuardService);
   const quickTrash = useLiveData(contextValue.quickTrash$);
 
   const onMoveToTrash = useCallback(
-    (e: React.MouseEvent) => {
+    (e: React.MouseEvent<HTMLButtonElement>) => {
+      onClick?.(e);
       e.stopPropagation();
       e.preventDefault();
       if (!doc) {
@@ -140,12 +163,23 @@ export const QuickDelete = memo(function QuickDelete({
         confirmButtonOptions: {
           variant: 'error',
         },
-        onConfirm: () => {
-          doc.moveToTrash();
+        onConfirm: async () => {
+          try {
+            const canTrash = await guardService.can('Doc_Trash', doc.id);
+            if (!canTrash) {
+              toast(t['com.affine.no-permission']());
+              return;
+            }
+            await doc.moveToTrash();
+          } catch (error) {
+            console.error(error);
+            const userFriendlyError = UserFriendlyError.fromAny(error);
+            toast(t[`error.${userFriendlyError.name}`](userFriendlyError.data));
+          }
         },
       });
     },
-    [doc, openConfirmModal, t]
+    [doc, guardService, onClick, openConfirmModal, t]
   );
 
   if (!quickTrash) {
@@ -157,6 +191,7 @@ export const QuickDelete = memo(function QuickDelete({
       onClick={onMoveToTrash}
       icon={<DeleteIcon />}
       variant="danger"
+      data-testid="doc-list-operation-trash"
       {...iconButtonProps}
     />
   );
@@ -164,6 +199,7 @@ export const QuickDelete = memo(function QuickDelete({
 
 export const QuickSelect = memo(function QuickSelect({
   doc,
+  onClick,
   ...iconButtonProps
 }: QuickActionProps) {
   const contextValue = useContext(DocExplorerContext);
@@ -173,16 +209,19 @@ export const QuickSelect = memo(function QuickSelect({
   const selected = selectedDocIds.includes(doc.id);
 
   const onChange = useCallback(
-    (e: React.MouseEvent) => {
+    (e: React.MouseEvent<HTMLButtonElement>) => {
+      contextValue.selectMode$?.next(true);
+      onClick?.(e);
       e.stopPropagation();
       e.preventDefault();
+      contextValue.selectMode$?.next(true);
       contextValue.selectedDocIds$?.next(
         selected
           ? selectedDocIds.filter(id => id !== doc.id)
           : [...selectedDocIds, doc.id]
       );
     },
-    [contextValue, doc.id, selected, selectedDocIds]
+    [contextValue, doc.id, onClick, selected, selectedDocIds]
   );
 
   if (!quickSelect) {
@@ -193,6 +232,119 @@ export const QuickSelect = memo(function QuickSelect({
     <IconButton
       onClick={onChange}
       icon={<Checkbox checked={selected} style={{ pointerEvents: 'none' }} />}
+      {...iconButtonProps}
+    />
+  );
+});
+
+export const QuickDeletePermanently = memo(function QuickDeletePermanently({
+  doc,
+  onClick,
+  ...iconButtonProps
+}: QuickActionProps) {
+  const t = useI18n();
+  const guardService = useService(GuardService);
+  const contextValue = useContext(DocExplorerContext);
+  const { permanentlyDeletePage } = useBlockSuiteMetaHelper();
+  const quickDeletePermanently = useLiveData(
+    contextValue.quickDeletePermanently$
+  );
+  const { openConfirmModal } = useConfirmModal();
+
+  const handleDeletePermanently = useCallback(async () => {
+    try {
+      const canDelete = await guardService.can('Doc_Delete', doc.id);
+      if (canDelete) {
+        await permanentlyDeletePage(doc.id);
+        toast(t['com.affine.toastMessage.permanentlyDeleted']());
+      } else {
+        toast(t['com.affine.no-permission']());
+      }
+    } catch (error) {
+      console.error(error);
+    }
+  }, [doc.id, guardService, permanentlyDeletePage, t]);
+
+  const handleConfirmDeletePermanently = useCallback(
+    (e: React.MouseEvent<HTMLButtonElement>) => {
+      onClick?.(e);
+      e.stopPropagation();
+      e.preventDefault();
+      openConfirmModal({
+        title: `${t['com.affine.trashOperation.deletePermanently']()}?`,
+        description: t['com.affine.trashOperation.deleteDescription'](),
+        cancelText: t['Cancel'](),
+        confirmText: t['com.affine.trashOperation.delete'](),
+        confirmButtonOptions: {
+          variant: 'error',
+        },
+        onConfirm: handleDeletePermanently,
+      });
+    },
+    [handleDeletePermanently, onClick, openConfirmModal, t]
+  );
+
+  if (!quickDeletePermanently) {
+    return null;
+  }
+
+  return (
+    <IconButton
+      data-testid="delete-page-button"
+      onClick={handleConfirmDeletePermanently}
+      icon={<DeleteIcon />}
+      variant="danger"
+      {...iconButtonProps}
+    />
+  );
+});
+
+export const QuickRestore = memo(function QuickRestore({
+  doc,
+  onClick,
+  ...iconButtonProps
+}: QuickActionProps) {
+  const t = useI18n();
+  const contextValue = useContext(DocExplorerContext);
+  const quickRestore = useLiveData(contextValue.quickRestore$);
+  const { restoreFromTrash } = useBlockSuiteMetaHelper();
+  const guardService = useService(GuardService);
+
+  const handleRestore = useCallback(
+    (e: React.MouseEvent<HTMLButtonElement>) => {
+      onClick?.(e);
+      e.stopPropagation();
+      e.preventDefault();
+      guardService
+        .can('Doc_Delete', doc.id)
+        .then(async can => {
+          if (can) {
+            await restoreFromTrash(doc.id);
+            toast(
+              t['com.affine.toastMessage.restored']({
+                title: doc.title$.value || 'Untitled',
+              })
+            );
+          } else {
+            toast(t['com.affine.no-permission']());
+          }
+        })
+        .catch(error => {
+          console.error(error);
+        });
+    },
+    [doc.id, doc.title$, guardService, onClick, restoreFromTrash, t]
+  );
+
+  if (!quickRestore) {
+    return null;
+  }
+
+  return (
+    <IconButton
+      data-testid="restore-page-button"
+      onClick={handleRestore}
+      icon={<ResetIcon />}
       {...iconButtonProps}
     />
   );

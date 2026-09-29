@@ -1,5 +1,4 @@
 import {
-  Menu,
   MenuItem,
   notify,
   PropertyValue,
@@ -16,6 +15,7 @@ import { useCallback, useMemo } from 'react';
 import { PlainTextDocGroupHeader } from '../explorer/docs-view/group-header';
 import { StackProperty } from '../explorer/docs-view/stack-property';
 import type { DocListPropertyProps, GroupHeaderProps } from '../explorer/types';
+import { FilterValueMenu } from '../filter/filter-value-menu';
 import type { PropertyValueProps } from '../properties/types';
 import { PropertyRadioGroup } from '../properties/widgets/radio-group';
 import * as styles from './doc-primary-mode.css';
@@ -78,20 +78,26 @@ export const DocPrimaryModeValue = ({
 
 export const DocPrimaryModeFilterValue = ({
   filter,
+  isDraft,
+  onDraftCompleted,
   onChange,
 }: {
   filter: FilterParams;
-  onChange: (filter: FilterParams) => void;
+  isDraft?: boolean;
+  onDraftCompleted?: () => void;
+  onChange?: (filter: FilterParams) => void;
 }) => {
   const t = useI18n();
 
   return (
-    <Menu
+    <FilterValueMenu
+      isDraft={isDraft}
+      onDraftCompleted={onDraftCompleted}
       items={
         <>
           <MenuItem
             onClick={() => {
-              onChange({
+              onChange?.({
                 ...filter,
                 value: 'page',
               });
@@ -102,7 +108,7 @@ export const DocPrimaryModeFilterValue = ({
           </MenuItem>
           <MenuItem
             onClick={() => {
-              onChange({
+              onChange?.({
                 ...filter,
                 value: 'edgeless',
               });
@@ -115,7 +121,7 @@ export const DocPrimaryModeFilterValue = ({
       }
     >
       <span>{filter.value === 'edgeless' ? t['Edgeless']() : t['Page']()}</span>
-    </Menu>
+    </FilterValueMenu>
   );
 };
 

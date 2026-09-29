@@ -1,20 +1,28 @@
-import { Menu, MenuItem } from '@affine/component';
+import { MenuItem } from '@affine/component';
 import type { FilterParams } from '@affine/core/modules/collection-rules';
+
+import { FilterValueMenu } from '../filter/filter-value-menu';
 
 export const SharedFilterValue = ({
   filter,
+  isDraft,
+  onDraftCompleted,
   onChange,
 }: {
   filter: FilterParams;
-  onChange: (filter: FilterParams) => void;
+  isDraft?: boolean;
+  onDraftCompleted?: () => void;
+  onChange?: (filter: FilterParams) => void;
 }) => {
   return (
-    <Menu
+    <FilterValueMenu
+      isDraft={isDraft}
+      onDraftCompleted={onDraftCompleted}
       items={
         <>
           <MenuItem
             onClick={() => {
-              onChange({
+              onChange?.({
                 ...filter,
                 value: 'true',
               });
@@ -25,7 +33,7 @@ export const SharedFilterValue = ({
           </MenuItem>
           <MenuItem
             onClick={() => {
-              onChange({
+              onChange?.({
                 ...filter,
                 value: 'false',
               });
@@ -38,6 +46,6 @@ export const SharedFilterValue = ({
       }
     >
       <span>{filter.value === 'true' ? 'True' : 'False'}</span>
-    </Menu>
+    </FilterValueMenu>
   );
 };

@@ -1,7 +1,8 @@
 import {
   Checkbox,
+  ContextMenu,
   DragHandle as DragHandleIcon,
-  Skeleton,
+  Tooltip,
   useDraggable,
 } from '@affine/component';
 import { DocsService } from '@affine/core/modules/doc';
@@ -9,6 +10,7 @@ import { DocDisplayMetaService } from '@affine/core/modules/doc-display-meta';
 import { WorkbenchLink } from '@affine/core/modules/workbench';
 import type { AffineDNDData } from '@affine/core/types/dnd';
 import { useI18n } from '@affine/i18n';
+import track from '@affine/track';
 import {
   AutoTidyUpIcon,
   PropertyIcon,
@@ -22,14 +24,13 @@ import {
   type SVGProps,
   useCallback,
   useContext,
-  useState,
 } from 'react';
 
 import { PagePreview } from '../../page-list/page-content-preview';
 import { DocExplorerContext } from '../context';
 import { quickActions } from '../quick-actions.constants';
 import * as styles from './doc-list-item.css';
-import { MoreMenuButton } from './more-menu';
+import { MoreMenuButton, MoreMenuContent } from './more-menu';
 import { CardViewProperties, ListViewProperties } from './properties';
 
 export type DocListItemView = 'list' | 'grid' | 'masonry';
@@ -67,7 +68,7 @@ class MixId {
 }
 export const DocListItem = ({ ...props }: DocListItemProps) => {
   const contextValue = useContext(DocExplorerContext);
-  const view = useLiveData(contextValue.view$);
+  const view = useLiveData(contextValue.view$) ?? 'list';
   const groups = useLiveData(contextValue.groups$);
   const selectMode = useLiveData(contextValue.selectMode$);
   const selectedDocIds = useLiveData(contextValue.selectedDocIds$);
@@ -124,16 +125,22 @@ export const DocListItem = ({ ...props }: DocListItemProps) => {
           // do multi select
           handleMultiSelect(prevCheckAnchorId, currCursor);
         } else {
-          contextValue.selectedDocIds$?.next([docId]);
+          contextValue.selectedDocIds$?.next(
+            contextValue.selectedDocIds$.value.includes(docId)
+              ? contextValue.selectedDocIds$.value.filter(id => id !== docId)
+              : [...contextValue.selectedDocIds$.value, docId]
+          );
           contextValue.prevCheckAnchorId$?.next(currCursor);
         }
       } else {
         if (e.shiftKey) {
+          contextValue.selectMode$?.next(true);
           contextValue.selectedDocIds$?.next([docId]);
           contextValue.prevCheckAnchorId$?.next(currCursor);
           return;
         } else {
           // as link
+          track.allDocs.list.doc.openDoc();
           return;
         }
       }
@@ -141,20 +148,47 @@ export const DocListItem = ({ ...props }: DocListItemProps) => {
     [contextValue, handleMultiSelect, prevCheckAnchorId, props, selectMode]
   );
 
+  const { dragRef, CustomDragPreview } = useDraggable<AffineDNDData>(
+    () => ({
+      canDrag: true,
+      data: {
+        entity: {
+          type: 'doc',
+          id: props.docId as string,
+        },
+        from: {
+          at: 'all-docs:list',
+        },
+      },
+    }),
+    [props.docId]
+  );
+
   return (
-    <WorkbenchLink
-      draggable={false}
-      to={`/${props.docId}`}
-      onClick={handleClick}
-      data-selected={selectedDocIds.includes(props.docId)}
-      className={styles.root}
-    >
-      {view === 'list' ? (
-        <ListViewDoc {...props} />
-      ) : (
-        <CardViewDoc {...props} />
-      )}
-    </WorkbenchLink>
+    <>
+      <WorkbenchLink
+        ref={dragRef}
+        draggable={false}
+        to={`/${props.docId}`}
+        onClick={handleClick}
+        data-selected={selectedDocIds.includes(props.docId)}
+        className={styles.root}
+        data-testid={`doc-list-item`}
+        data-doc-id={props.docId}
+      >
+        {view === 'list' ? (
+          <ListViewDoc {...props} />
+        ) : (
+          <CardViewDoc {...props} />
+        )}
+      </WorkbenchLink>
+      <CustomDragPreview>
+        <div className={styles.dragPreview}>
+          <RawDocIcon id={props.docId} className={styles.dragPreviewIcon} />
+          <RawDocTitle id={props.docId} />
+        </div>
+      </CustomDragPreview>
+    </>
   );
 };
 
@@ -167,10 +201,9 @@ const RawDocIcon = memo(function RawDocIcon({
   return <Icon {...props} />;
 });
 const RawDocTitle = memo(function RawDocTitle({ id }: { id: string }) {
-  const i18n = useI18n();
   const docDisplayMetaService = useService(DocDisplayMetaService);
   const title = useLiveData(docDisplayMetaService.title$(id));
-  return i18n.t(title);
+  return title;
 });
 const RawDocPreview = memo(function RawDocPreview({
   id,
@@ -183,46 +216,20 @@ const RawDocPreview = memo(function RawDocPreview({
 });
 const DragHandle = memo(function DragHandle({
   id,
-  preview,
   ...props
-}: HTMLProps<HTMLDivElement> & { preview?: ReactNode }) {
+}: HTMLProps<HTMLDivElement>) {
   const contextValue = useContext(DocExplorerContext);
   const selectMode = useLiveData(contextValue.selectMode$);
+  const showDragHandle = useLiveData(contextValue.showDragHandle$);
 
-  const { dragRef, CustomDragPreview } = useDraggable<AffineDNDData>(
-    () => ({
-      canDrag: true,
-      data: {
-        entity: {
-          type: 'doc',
-          id: id as string,
-        },
-        from: {
-          at: 'all-docs:list',
-        },
-      },
-    }),
-    [id]
-  );
-
-  if (selectMode || !id) {
+  if (selectMode || !id || !showDragHandle) {
     return null;
   }
 
   return (
-    <>
-      <div ref={dragRef} {...props}>
-        <DragHandleIcon />
-      </div>
-      <CustomDragPreview>
-        {preview ?? (
-          <>
-            <RawDocIcon id={id} />
-            <RawDocTitle id={id} />
-          </>
-        )}
-      </CustomDragPreview>
-    </>
+    <div {...props}>
+      <DragHandleIcon />
+    </div>
   );
 });
 const Select = memo(function Select({
@@ -242,7 +249,11 @@ const Select = memo(function Select({
   }
 
   return (
-    <div data-select-mode={selectMode} {...props}>
+    <div
+      data-select-mode={selectMode}
+      data-testid={`doc-list-item-select`}
+      {...props}
+    >
       <Checkbox
         checked={selectedDocIds.includes(id)}
         onChange={handleSelectChange}
@@ -250,7 +261,7 @@ const Select = memo(function Select({
     </div>
   );
 });
-// Different with RawDocIcon, refer to `ExplorerPreference.showDocIcon`
+// Different with RawDocIcon, refer to `ExplorerDisplayPreference.showDocIcon`
 const DocIcon = memo(function DocIcon({
   id,
   ...props
@@ -301,39 +312,49 @@ const listMoreMenuContentOptions = {
   alignOffset: -4,
 } as const;
 export const ListViewDoc = ({ docId }: DocListItemProps) => {
+  const t = useI18n();
   const docsService = useService(DocsService);
   const doc = useLiveData(docsService.list.doc$(docId));
-  const [previewSkeletonWidth] = useState(
-    Math.round(100 + Math.random() * 100)
-  );
+  const contextValue = useContext(DocExplorerContext);
+  const showMoreOperation = useLiveData(contextValue.showMoreOperation$);
 
   if (!doc) {
     return null;
   }
 
   return (
-    <li className={styles.listViewRoot}>
-      <DragHandle id={docId} className={styles.listDragHandle} />
-      <Select id={docId} className={styles.listSelect} />
-      <DocIcon id={docId} className={styles.listIcon} />
-      <div className={styles.listBrief}>
-        <DocTitle id={docId} className={styles.listTitle} />
-        <DocPreview
-          id={docId}
-          className={styles.listPreview}
-          loading={<Skeleton height={20} width={previewSkeletonWidth} />}
+    <ContextMenu
+      asChild
+      disabled={!showMoreOperation}
+      items={<MoreMenuContent docId={docId} />}
+    >
+      <li className={styles.listViewRoot}>
+        <DragHandle id={docId} className={styles.listDragHandle} />
+        <Select id={docId} className={styles.listSelect} />
+        <DocIcon id={docId} className={styles.listIcon} />
+        <div className={styles.listBrief}>
+          <DocTitle
+            id={docId}
+            className={styles.listTitle}
+            data-testid="doc-list-item-title"
+          />
+          <DocPreview id={docId} className={styles.listPreview} />
+        </div>
+        <div className={styles.listSpace} />
+        <ListViewProperties docId={docId} />
+        {quickActions.map(action => {
+          return (
+            <Tooltip key={action.key} content={t.t(action.name)}>
+              <action.Component doc={doc} />
+            </Tooltip>
+          );
+        })}
+        <MoreMenuButton
+          docId={docId}
+          contentOptions={listMoreMenuContentOptions}
         />
-      </div>
-      <div className={styles.listSpace} />
-      <ListViewProperties docId={docId} />
-      {quickActions.map(action => {
-        return <action.Component key={action.key} doc={doc} />;
-      })}
-      <MoreMenuButton
-        docId={docId}
-        contentOptions={listMoreMenuContentOptions}
-      />
-    </li>
+      </li>
+    </ContextMenu>
   );
 };
 
@@ -343,53 +364,54 @@ const cardMoreMenuContentOptions = {
   sideOffset: 12,
   alignOffset: -4,
 } as const;
-const randomPreviewSkeleton = () => {
-  return Array.from({ length: Math.floor(Math.random() * 2) + 1 }, (_, i) => ({
-    id: i,
-    width: Math.round(30 + Math.random() * 70),
-  }));
-};
+
 export const CardViewDoc = ({ docId }: DocListItemProps) => {
+  const t = useI18n();
   const contextValue = useContext(DocExplorerContext);
   const selectMode = useLiveData(contextValue.selectMode$);
   const docsService = useService(DocsService);
   const doc = useLiveData(docsService.list.doc$(docId));
-  const [previewSkeleton] = useState(randomPreviewSkeleton);
+  const showMoreOperation = useLiveData(contextValue.showMoreOperation$);
 
   if (!doc) {
     return null;
   }
 
   return (
-    <li className={styles.cardViewRoot}>
-      <header className={styles.cardViewHeader}>
-        <DocIcon id={docId} className={styles.cardViewIcon} />
-        <DocTitle id={docId} className={styles.cardViewTitle} />
-        {quickActions.map(action => {
-          return <action.Component size="16" key={action.key} doc={doc} />;
-        })}
-        {selectMode ? (
-          <Select id={docId} className={styles.cardViewCheckbox} />
-        ) : (
-          <MoreMenuButton
-            docId={docId}
-            contentOptions={cardMoreMenuContentOptions}
-            iconProps={{ size: '16' }}
+    <ContextMenu
+      asChild
+      disabled={!showMoreOperation}
+      items={<MoreMenuContent docId={docId} />}
+    >
+      <li className={styles.cardViewRoot}>
+        <DragHandle id={docId} className={styles.cardDragHandle} />
+        <header className={styles.cardViewHeader}>
+          <DocIcon id={docId} className={styles.cardViewIcon} />
+          <DocTitle
+            id={docId}
+            className={styles.cardViewTitle}
+            data-testid="doc-list-item-title"
           />
-        )}
-      </header>
-      <DocPreview
-        id={docId}
-        className={styles.cardPreviewContainer}
-        loading={
-          <div>
-            {previewSkeleton.map(({ id, width }) => (
-              <Skeleton key={id} height={20} width={`${width}%`} />
-            ))}
-          </div>
-        }
-      />
-      <CardViewProperties docId={docId} />
-    </li>
+          {quickActions.map(action => {
+            return (
+              <Tooltip key={action.key} content={t.t(action.name)}>
+                <action.Component size="16" doc={doc} />
+              </Tooltip>
+            );
+          })}
+          {selectMode ? (
+            <Select id={docId} className={styles.cardViewCheckbox} />
+          ) : (
+            <MoreMenuButton
+              docId={docId}
+              contentOptions={cardMoreMenuContentOptions}
+              iconProps={{ size: '16' }}
+            />
+          )}
+        </header>
+        <DocPreview id={docId} className={styles.cardPreviewContainer} />
+        <CardViewProperties docId={docId} />
+      </li>
+    </ContextMenu>
   );
 };

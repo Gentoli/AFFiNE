@@ -29,7 +29,9 @@ export const viewToggleItem = style({
     },
   },
 });
-export const viewToggleIndicator = style({
-  backgroundColor: cssVarV2.layer.background.hoverOverlay,
-  boxShadow: 'none',
+
+export const newPageButtonLabel = style({
+  fontSize: '12px',
+  color: cssVarV2.text.primary,
+  fontWeight: 500,
 });

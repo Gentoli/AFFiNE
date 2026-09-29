@@ -1,132 +1,185 @@
 import { Button, Divider } from '@affine/component';
-import {
-  WorkspacePropertyService,
-  type WorkspacePropertyType,
-} from '@affine/core/modules/workspace-property';
+import { WorkspacePropertyService } from '@affine/core/modules/workspace-property';
 import { useI18n } from '@affine/i18n';
+import track from '@affine/track';
 import { useLiveData, useService } from '@toeverything/infra';
-import { useCallback, useContext, useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 
 import { WorkspacePropertyName } from '../../properties';
 import { WorkspacePropertyTypes } from '../../workspace-property-types';
-import { DocExplorerContext } from '../context';
+import { generateExplorerPropertyList } from '../properties';
+import type { ExplorerDisplayPreference } from '../types';
 import * as styles from './properties.css';
 
-export const filterDisplayProperties = <
-  T extends { type: WorkspacePropertyType },
->(
-  propertyList: T[],
-  showInDocList: 'inline' | 'stack'
-) => {
-  return propertyList
-    .filter(
-      property =>
-        WorkspacePropertyTypes[property.type].showInDocList === showInDocList
-    )
-    .map(property => ({
-      property,
-      config: WorkspacePropertyTypes[property.type],
-    }));
-};
-
-export const DisplayProperties = () => {
+export const DisplayProperties = ({
+  displayPreference,
+  onDisplayPreferenceChange,
+}: {
+  displayPreference: ExplorerDisplayPreference;
+  onDisplayPreferenceChange: (
+    displayPreference: ExplorerDisplayPreference
+  ) => void;
+}) => {
   const t = useI18n();
-  const explorerContextValue = useContext(DocExplorerContext);
   const workspacePropertyService = useService(WorkspacePropertyService);
-  const propertyList = useLiveData(workspacePropertyService.properties$);
+  const propertyList = useLiveData(workspacePropertyService.sortedProperties$);
+  const explorerPropertyList = useMemo(() => {
+    return generateExplorerPropertyList(propertyList);
+  }, [propertyList]);
 
-  const displayProperties = useLiveData(
-    explorerContextValue.displayProperties$
-  );
-  const showIcon = useLiveData(explorerContextValue.showDocIcon$);
-  const showBody = useLiveData(explorerContextValue.showDocPreview$);
-
-  const propertiesGroups = useMemo(
-    () => [
-      {
-        type: 'inline',
-        properties: filterDisplayProperties(propertyList, 'inline'),
-      },
-      {
-        type: 'stack',
-        properties: filterDisplayProperties(propertyList, 'stack'),
-      },
-    ],
-    [propertyList]
-  );
+  const displayProperties = displayPreference.displayProperties;
+  const showIcon = displayPreference.showDocIcon ?? false;
+  const showBody = displayPreference.showDocPreview ?? false;
 
   const handleDisplayPropertiesChange = useCallback(
     (displayProperties: string[]) => {
-      explorerContextValue.displayProperties$?.next(displayProperties);
+      onDisplayPreferenceChange({ ...displayPreference, displayProperties });
     },
-    [explorerContextValue.displayProperties$]
+    [displayPreference, onDisplayPreferenceChange]
   );
 
   const handlePropertyClick = useCallback(
-    (propertyId: string) => {
+    (key: string) => {
       handleDisplayPropertiesChange(
-        displayProperties && displayProperties.includes(propertyId)
-          ? displayProperties.filter(id => id !== propertyId)
-          : [...(displayProperties || []), propertyId]
+        displayProperties && displayProperties.includes(key)
+          ? displayProperties.filter(k => k !== key)
+          : [...(displayProperties || []), key]
       );
     },
     [displayProperties, handleDisplayPropertiesChange]
   );
 
   const toggleIcon = useCallback(() => {
-    explorerContextValue.showDocIcon$?.next(!showIcon);
-  }, [explorerContextValue.showDocIcon$, showIcon]);
+    onDisplayPreferenceChange({
+      ...displayPreference,
+      showDocIcon: !showIcon,
+    });
+  }, [displayPreference, onDisplayPreferenceChange, showIcon]);
 
   const toggleBody = useCallback(() => {
-    explorerContextValue.showDocPreview$?.next(!showBody);
-  }, [explorerContextValue.showDocPreview$, showBody]);
+    onDisplayPreferenceChange({
+      ...displayPreference,
+      showDocPreview: !showBody,
+    });
+  }, [displayPreference, onDisplayPreferenceChange, showBody]);
 
   return (
     <div className={styles.root}>
       <section className={styles.sectionLabel}>
         {t['com.affine.all-docs.display.properties']()}
       </section>
-      {propertiesGroups.map(list => {
-        return (
-          <div className={styles.properties} key={list.type}>
-            {list.properties.map(({ property }) => {
-              return (
-                <Button
-                  key={property.id}
-                  data-show={
-                    displayProperties && displayProperties.includes(property.id)
-                  }
-                  onClick={() => handlePropertyClick(property.id)}
-                  className={styles.property}
-                  data-property-id={property.id}
-                >
-                  <WorkspacePropertyName propertyInfo={property} />
-                </Button>
-              );
-            })}
-          </div>
-        );
-      })}
-      <Divider size="thinner" />
-      <section className={styles.sectionLabel}>
-        {t['com.affine.all-docs.display.list-view']()}
-      </section>
       <div className={styles.properties}>
-        <Button
-          className={styles.property}
-          data-show={showIcon}
-          onClick={toggleIcon}
-        >
-          {t['com.affine.all-docs.display.list-view.icon']()}
-        </Button>
-        <Button
-          className={styles.property}
-          data-show={showBody}
-          onClick={toggleBody}
-        >
-          {t['com.affine.all-docs.display.list-view.body']()}
-        </Button>
+        {explorerPropertyList
+          .filter(p => p.systemProperty)
+          .map(property => {
+            return (
+              <PropertyRenderer
+                key={
+                  property.systemProperty?.type ??
+                  property.workspaceProperty?.id
+                }
+                property={property}
+                displayProperties={displayProperties ?? []}
+                handlePropertyClick={handlePropertyClick}
+              />
+            );
+          })}
       </div>
+      <div className={styles.properties}>
+        {explorerPropertyList
+          .filter(p => !p.systemProperty)
+          .map(property => {
+            return (
+              <PropertyRenderer
+                key={
+                  property.systemProperty?.type ??
+                  property.workspaceProperty?.id
+                }
+                property={property}
+                displayProperties={displayProperties ?? []}
+                handlePropertyClick={handlePropertyClick}
+              />
+            );
+          })}
+      </div>
+      {displayPreference.view === 'list' ? (
+        <>
+          <Divider space={4} size="thinner" />
+          <section className={styles.sectionLabel}>
+            {t['com.affine.all-docs.display.list-view']()}
+          </section>
+          <div className={styles.properties}>
+            <Button
+              className={styles.property}
+              data-show={showIcon}
+              onClick={toggleIcon}
+            >
+              {t['com.affine.all-docs.display.list-view.icon']()}
+            </Button>
+            <Button
+              className={styles.property}
+              data-show={showBody}
+              onClick={toggleBody}
+            >
+              {t['com.affine.all-docs.display.list-view.body']()}
+            </Button>
+          </div>
+        </>
+      ) : null}
     </div>
+  );
+};
+
+const PropertyRenderer = ({
+  property,
+  displayProperties,
+  handlePropertyClick,
+}: {
+  property: ReturnType<typeof generateExplorerPropertyList>[number];
+  displayProperties: string[];
+  handlePropertyClick: (key: string) => void;
+}) => {
+  const t = useI18n();
+  const { systemProperty, workspaceProperty } = property;
+  const key = systemProperty
+    ? `system:${systemProperty.type}`
+    : workspaceProperty
+      ? `property:${workspaceProperty?.id}`
+      : null;
+  const activeKey = systemProperty
+    ? `system:${systemProperty.type}`
+    : workspaceProperty
+      ? `property:${workspaceProperty?.id}`
+      : null;
+  const isActive = activeKey && displayProperties.includes(activeKey);
+
+  const showInDocList =
+    systemProperty?.showInDocList ||
+    (workspaceProperty &&
+      WorkspacePropertyTypes[workspaceProperty.type]?.showInDocList);
+
+  if (!key || !showInDocList) {
+    return null;
+  }
+  return (
+    <Button
+      key={key}
+      data-show={isActive}
+      onClick={() => {
+        track.allDocs.header.displayMenu.editDisplayMenu({
+          control: 'displayProperties',
+          type: systemProperty?.type ?? 'custom-property',
+        });
+        handlePropertyClick(key);
+      }}
+      className={styles.property}
+      data-key={key}
+    >
+      {workspaceProperty ? (
+        <WorkspacePropertyName propertyInfo={workspaceProperty} />
+      ) : systemProperty ? (
+        t.t(systemProperty.name)
+      ) : null}
+    </Button>
   );
 };
